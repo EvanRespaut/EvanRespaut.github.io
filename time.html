@@ -1,6 +1,7 @@
 <html>
 <body>
-<script type="text/javascript">
+<ul>
+  <li><script type="text/javascript">
 var d = new Date()
 document.write(d.getMonth() + 1)
 document.write("/")
@@ -13,6 +14,24 @@ document.write(":")
 document.write(d.getMinutes() + 1)
 document.write(":")
 document.write(d.getSeconds())
-</script>
+</script></li>
+  <li><script type="text/javascript">
+var d = new Date()
+document.write(d.getMonth() + 1)
+document.write("/")
+document.write(d.getDate())
+document.write("/")
+document.write(d.getFullYear())
+</script></li>
+  <li><script type="text/javascript">
+var d = new Date()
+document.write(d.getHours()%12)
+document.write(":")
+document.write(d.getMinutes() + 1)
+document.write(":")
+document.write(d.getSeconds())
+</script></li>
+</ul>
+
 </body>
 </html>
