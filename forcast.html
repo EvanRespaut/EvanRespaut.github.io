@@ -489,6 +489,9 @@
                     currentLocationName = location.display_name.split(',').slice(0, 2).join(', ');
                     document.getElementById('locationName').textContent = currentLocationName;
                     
+                    // Reset elevation when changing locations
+                    currentElevation = null;
+                    
                     // Destroy existing charts before reinitializing
                     Object.values(charts).forEach(chart => {
                         if (chart) chart.destroy();
@@ -516,7 +519,8 @@
         
         // Update location details
         function updateLocationDetails() {
-            const elevText = currentElevation ? `${Math.round(currentElevation * 3.28084)} ft` : '';
+            const elevText = currentElevation !== null && currentElevation !== undefined ? 
+                `${Math.round(currentElevation * 3.28084)} ft` : '';
             const coordsText = `${currentLat.toFixed(4)}°, ${currentLon.toFixed(4)}°`;
             document.getElementById('locationDetails').textContent = `${coordsText}${elevText ? ' • ' + elevText : ''}`;
         }
@@ -636,8 +640,9 @@
                 const gridData = await gridResponse.json();
                 
                 // Get elevation from grid data
-                if (gridData.properties && gridData.properties.elevation) {
+                if (gridData.properties && gridData.properties.elevation && gridData.properties.elevation.value !== undefined) {
                     currentElevation = gridData.properties.elevation.value;
+                    console.log('Elevation found:', currentElevation);
                 }
                 
                 const gridForecastResponse = await fetch(gridData.properties.forecastGridData);
@@ -756,39 +761,66 @@
         }
         
         function createCurrentForecast(dailyPeriods) {
-            let todayPeriod = null;
-            let tonightPeriod = null;
+            const now = new Date();
+            const currentHour = now.getHours();
             
-            for (let i = 0; i < Math.min(2, dailyPeriods.length); i++) {
-                const period = dailyPeriods[i];
-                if (!todayPeriod && period.isDaytime) {
-                    todayPeriod = period;
-                } else if (!tonightPeriod && !period.isDaytime) {
-                    tonightPeriod = period;
+            // Between 5pm (17) and 6am (6), show Tonight and Tomorrow
+            const showTonightTomorrow = currentHour >= 17 || currentHour < 6;
+            
+            let firstPeriod = null;
+            let secondPeriod = null;
+            let firstTitle = '';
+            let secondTitle = '';
+            
+            if (showTonightTomorrow) {
+                // Find tonight and tomorrow
+                for (let i = 0; i < dailyPeriods.length; i++) {
+                    const period = dailyPeriods[i];
+                    if (!firstPeriod && !period.isDaytime) {
+                        firstPeriod = period;
+                        firstTitle = 'Tonight';
+                    } else if (firstPeriod && !secondPeriod && period.isDaytime) {
+                        secondPeriod = period;
+                        secondTitle = 'Tomorrow';
+                        break;
+                    }
+                }
+            } else {
+                // Find today and tonight
+                for (let i = 0; i < dailyPeriods.length; i++) {
+                    const period = dailyPeriods[i];
+                    if (!firstPeriod && period.isDaytime) {
+                        firstPeriod = period;
+                        firstTitle = 'Today';
+                    } else if (firstPeriod && !secondPeriod && !period.isDaytime) {
+                        secondPeriod = period;
+                        secondTitle = 'Tonight';
+                        break;
+                    }
                 }
             }
             
-            if (!todayPeriod && !tonightPeriod) {
+            if (!firstPeriod && !secondPeriod) {
                 document.getElementById('currentForecast').style.display = 'none';
                 return;
             }
             
             let html = '';
             
-            if (todayPeriod) {
+            if (firstPeriod) {
                 html += `
                     <div class="forecast-period">
-                        <div class="forecast-period-title">Today</div>
-                        <div class="forecast-period-text">${todayPeriod.detailedForecast}</div>
+                        <div class="forecast-period-title">${firstTitle}</div>
+                        <div class="forecast-period-text">${firstPeriod.detailedForecast}</div>
                     </div>
                 `;
             }
             
-            if (tonightPeriod) {
+            if (secondPeriod) {
                 html += `
                     <div class="forecast-period">
-                        <div class="forecast-period-title">Tonight</div>
-                        <div class="forecast-period-text">${tonightPeriod.detailedForecast}</div>
+                        <div class="forecast-period-title">${secondTitle}</div>
+                        <div class="forecast-period-text">${secondPeriod.detailedForecast}</div>
                     </div>
                 `;
             }
@@ -972,18 +1004,30 @@
             
             const datasets = chart.data.datasets;
             
-            let values = [];
+            // Create array of label-value pairs with their actual values for sorting
+            let dataItems = [];
             datasets.forEach(dataset => {
                 const value = dataset.data[index];
                 if (value !== null && value !== undefined) {
-                    values.push(`${dataset.label}: ${formatValue(value, chartId)}`);
+                    dataItems.push({
+                        label: dataset.label,
+                        value: value,
+                        formattedValue: formatValue(value, chartId)
+                    });
                 }
             });
+            
+            // Sort by value descending (highest first)
+            dataItems.sort((a, b) => b.value - a.value);
+            
+            // Create tooltip text from sorted items
+            const values = dataItems.map(item => `${item.label}: ${item.formattedValue}`);
             
             if (values.length > 0) {
                 tooltip.innerHTML = values.join('<br>');
                 tooltip.style.left = `${mouseX + 15}px`;
                 
+                // Position tooltip based on first dataset's value
                 const yPos = chart.scales.y.getPixelForValue(datasets[0].data[index]);
                 tooltip.style.top = `${yPos - 10}px`;
                 tooltip.style.display = 'block';
