@@ -15,6 +15,9 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background-color: #f0f2f5;
             padding: 20px;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
         
         .main-container {
@@ -225,7 +228,7 @@
             border-right: none;
         }
         
-        .day-forecast:hover {
+        .day-forecast:hover, .day-forecast.selected {
             background-color: #f0f9ff;
         }
         
@@ -276,6 +279,7 @@
             background: #fafafa;
             position: relative;
             overflow-x: auto;
+            touch-action: pan-y;
         }
         
         .chart-section {
@@ -371,6 +375,7 @@
         canvas {
             max-height: 100%;
             cursor: crosshair;
+            touch-action: none;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -465,6 +470,8 @@
         let currentElevation = null;
         let globalHourlyData = null;
         let globalDayBoundaries = [];
+        let globalDailyPeriods = [];
+        let selectedDayIndex = null;
         
         // Chart configuration defaults
         Chart.defaults.font.size = 10;
@@ -574,24 +581,21 @@
             return Math.round(temp);
         }
         
-        function getWeatherIcon(conditions) {
+        function getWeatherIcon(conditions, precipProb = 0) {
             if (!conditions) return '☁️';
             
-            if (Array.isArray(conditions) && conditions.length > 0) {
-                const primary = conditions[0].weather?.toLowerCase() || '';
-                if (primary.includes('thunder')) return '⛈️';
-                if (primary.includes('rain') || primary.includes('shower')) return '🌧️';
-                if (primary.includes('snow')) return '❄️';
-                if (primary.includes('fog')) return '🌫️';
+            const forecast = conditions.toLowerCase();
+            
+            // Only show rain/snow icons if precipitation probability > 50%
+            if (precipProb > 50) {
+                if (forecast.includes('storm') || forecast.includes('thunder')) return '⛈️';
+                if (forecast.includes('rain') || forecast.includes('shower')) return '🌧️';
+                if (forecast.includes('snow')) return '❄️';
             }
             
-            const forecast = conditions.toLowerCase();
             if (forecast.includes('sunny') || forecast.includes('clear')) return '☀️';
             if (forecast.includes('partly')) return '⛅';
             if (forecast.includes('cloudy')) return '☁️';
-            if (forecast.includes('rain') || forecast.includes('shower')) return '🌧️';
-            if (forecast.includes('storm')) return '⛈️';
-            if (forecast.includes('snow')) return '❄️';
             if (forecast.includes('fog')) return '🌫️';
             if (forecast.includes('wind')) return '💨';
             return '☁️';
@@ -639,15 +643,16 @@
                 if (!gridResponse.ok) throw new Error(`Grid API Error: ${gridResponse.status}`);
                 const gridData = await gridResponse.json();
                 
-                // Get elevation from grid data
-                if (gridData.properties && gridData.properties.elevation && gridData.properties.elevation.value !== undefined) {
-                    currentElevation = gridData.properties.elevation.value;
-                    console.log('Elevation found:', currentElevation);
-                }
-                
                 const gridForecastResponse = await fetch(gridData.properties.forecastGridData);
                 if (!gridForecastResponse.ok) throw new Error(`Grid Forecast Error: ${gridForecastResponse.status}`);
                 const gridForecastData = await gridForecastResponse.json();
+                
+                // Get elevation from gridded forecast data
+                if (gridForecastData.properties && gridForecastData.properties.elevation && 
+                    gridForecastData.properties.elevation.value !== undefined) {
+                    currentElevation = gridForecastData.properties.elevation.value;
+                    console.log('Elevation from grid forecast:', currentElevation);
+                }
                 
                 const dailyResponse = await fetch(gridData.properties.forecast);
                 if (!dailyResponse.ok) throw new Error(`Daily Forecast Error: ${dailyResponse.status}`);
@@ -734,7 +739,7 @@
                         <div class="current-temp-value">${current.temperature}°</div>
                         <div class="current-temp-feels">Feels ${current.feelsLike}°</div>
                     </div>
-                    <div class="current-condition-icon">${getWeatherIcon(current.description)}</div>
+                    <div class="current-condition-icon">${getWeatherIcon(current.description, current.precipProbability)}</div>
                 </div>
                 <div class="current-stats">
                     <div class="current-stat">
@@ -758,6 +763,55 @@
             `;
             
             document.getElementById('currentConditions').innerHTML = html;
+        }
+        
+        function showForecastForDay(dayIndex) {
+            if (dayIndex === null || !globalDailyPeriods.length) {
+                createCurrentForecast(globalDailyPeriods);
+                return;
+            }
+            
+            // Find the matching daily periods for the selected day
+            const dayOffset = dayIndex * 2;
+            let dayPeriod = null;
+            let nightPeriod = null;
+            
+            for (let i = dayOffset; i < Math.min(dayOffset + 2, globalDailyPeriods.length); i++) {
+                const period = globalDailyPeriods[i];
+                if (period.isDaytime) {
+                    dayPeriod = period;
+                } else {
+                    nightPeriod = period;
+                }
+            }
+            
+            // Display the forecast
+            let html = '';
+            
+            if (dayPeriod) {
+                const dayName = new Date(dayPeriod.startTime).toLocaleDateString('en-US', { weekday: 'long' });
+                html += `
+                    <div class="forecast-period">
+                        <div class="forecast-period-title">${dayName}</div>
+                        <div class="forecast-period-text">${dayPeriod.detailedForecast}</div>
+                    </div>
+                `;
+            }
+            
+            if (nightPeriod) {
+                const nightName = dayPeriod ? 
+                    new Date(dayPeriod.startTime).toLocaleDateString('en-US', { weekday: 'long' }) + ' Night' : 
+                    'Tonight';
+                html += `
+                    <div class="forecast-period">
+                        <div class="forecast-period-title">${nightName}</div>
+                        <div class="forecast-period-text">${nightPeriod.detailedForecast}</div>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('currentForecast').innerHTML = html;
+            document.getElementById('currentForecast').style.display = 'block';
         }
         
         function createCurrentForecast(dailyPeriods) {
@@ -830,6 +884,8 @@
         }
         
         function createDailyForecast(dailyPeriods, hourlyData) {
+            globalDailyPeriods = dailyPeriods;
+            
             // Calculate day boundaries
             const boundaries = [];
             let currentDay = null;
@@ -844,6 +900,10 @@
             
             globalDayBoundaries = boundaries;
             
+            const now = new Date();
+            const currentHour = now.getHours();
+            const isPast5PM = currentHour >= 17;
+            
             // Create day groups based on boundaries
             const days = [];
             for (let i = 0; i < boundaries.length && i < 7; i++) {
@@ -854,25 +914,32 @@
                 if (dayHours.length > 0) {
                     const temps = dayHours.map(h => h.temperature).filter(t => t !== null);
                     const date = dayHours[0].time;
+                    const isToday = i === 0;
                     
-                    // Find matching daily forecast
+                    // Find matching daily forecast with precipitation
                     let dayPeriod = null;
+                    let maxPrecipProb = 0;
+                    
                     for (const period of dailyPeriods) {
                         const periodDate = new Date(period.startTime);
                         if (periodDate.toDateString() === date.toDateString() && period.isDaytime) {
                             dayPeriod = period;
+                            // Get max precipitation probability for the day
+                            maxPrecipProb = Math.max(...dayHours.map(h => h.precipProbability));
                             break;
                         }
                     }
                     
                     days.push({
                         date: date,
-                        high: Math.max(...temps),
+                        high: isToday && isPast5PM ? null : Math.max(...temps),
                         low: Math.min(...temps),
                         hoursCount: dayHours.length,
                         startIdx: startIdx,
                         endIdx: endIdx,
-                        description: dayPeriod ? dayPeriod.shortForecast : dayHours[Math.floor(dayHours.length / 2)].description
+                        precipProb: maxPrecipProb,
+                        description: dayPeriod ? dayPeriod.shortForecast : dayHours[Math.floor(dayHours.length / 2)].description,
+                        dayIndex: i
                     });
                 }
             }
@@ -888,14 +955,16 @@
                 });
                 
                 const widthPercent = (day.hoursCount / totalHours) * 100;
+                const highTemp = day.high !== null ? `${Math.round(day.high)}°` : '--';
                 
                 return `
                     <div class="day-forecast" 
-                         style="flex: 0 0 ${widthPercent}%;">
+                         style="flex: 0 0 ${widthPercent}%;"
+                         onclick="selectDay(${day.dayIndex})">
                         <div class="day-name">${dayName}</div>
-                        <div class="day-icon">${getWeatherIcon(day.description)}</div>
+                        <div class="day-icon">${getWeatherIcon(day.description, day.precipProb)}</div>
                         <div class="day-temps">
-                            <span class="day-high">${Math.round(day.high)}°</span>
+                            <span class="day-high">${highTemp}</span>
                             <span class="day-low">${Math.round(day.low)}°</span>
                         </div>
                         <div class="day-detail">${day.description}</div>
@@ -904,6 +973,17 @@
             }).join('');
             
             document.getElementById('dailyForecast').innerHTML = html;
+        }
+        
+        function selectDay(dayIndex) {
+            // Remove previous selection
+            document.querySelectorAll('.day-forecast').forEach((el, i) => {
+                el.classList.toggle('selected', i === dayIndex);
+            });
+            
+            // Update selected day and show forecast
+            selectedDayIndex = selectedDayIndex === dayIndex ? null : dayIndex;
+            showForecastForDay(selectedDayIndex);
         }
         
         function getNightAnnotations(hourlyData) {
@@ -956,24 +1036,60 @@
             const canvases = chartsContainer.querySelectorAll('canvas');
             
             canvases.forEach(canvas => {
-                canvas.addEventListener('mousemove', (e) => {
-                    const chartId = canvas.id;
-                    const chart = charts[chartId];
-                    if (!chart) return;
-                    
-                    const canvasPosition = Chart.helpers.getRelativePosition(e, chart);
-                    const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
-                    const index = Math.round(dataX);
-                    
-                    if (index >= 0 && index < chart.data.labels.length && globalHourlyData && globalHourlyData[index]) {
-                        updateCrosshair(index, canvasPosition.x);
-                    }
-                });
+                // Mouse events
+                canvas.addEventListener('mousemove', handlePointerMove);
+                canvas.addEventListener('mouseleave', hideCrosshair);
                 
-                canvas.addEventListener('mouseleave', () => {
-                    hideCrosshair();
-                });
+                // Touch events for mobile
+                canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+                canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+                canvas.addEventListener('touchend', hideCrosshair);
             });
+        }
+        
+        function handlePointerMove(e) {
+            const chartId = e.target.id;
+            const chart = charts[chartId];
+            if (!chart) return;
+            
+            const canvasPosition = Chart.helpers.getRelativePosition(e, chart);
+            const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+            const index = Math.round(dataX);
+            
+            if (index >= 0 && index < chart.data.labels.length && globalHourlyData && globalHourlyData[index]) {
+                updateCrosshair(index, canvasPosition.x);
+            }
+        }
+        
+        function handleTouchStart(e) {
+            e.preventDefault();
+            handleTouchMove(e);
+        }
+        
+        function handleTouchMove(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = e.target.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            
+            const chartId = e.target.id;
+            const chart = charts[chartId];
+            if (!chart) return;
+            
+            // Create a fake mouse event for Chart.js helper
+            const fakeEvent = {
+                native: touch,
+                x: x,
+                y: touch.clientY - rect.top
+            };
+            
+            const canvasPosition = Chart.helpers.getRelativePosition(fakeEvent, chart);
+            const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+            const index = Math.round(dataX);
+            
+            if (index >= 0 && index < chart.data.labels.length && globalHourlyData && globalHourlyData[index]) {
+                updateCrosshair(index, canvasPosition.x);
+            }
         }
         
         function updateCrosshair(index, mouseX) {
@@ -988,6 +1104,7 @@
                 const hour = date.getHours();
                 const timeStr = hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`;
                 crosshairTime.textContent = timeStr;
+                crosshairTime.style.display = 'block';
             }
             
             updateTooltipForChart('tempChart', 'tempTooltip', index, mouseX);
