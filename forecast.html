@@ -203,25 +203,26 @@
             border-bottom: 2px solid #e0e0e0;
             position: relative;
             overflow-x: auto;
-            padding: 0 15px;
+            padding: 0 11px;
         }
         
         .daily-forecast-container {
             display: flex;
             position: relative;
-            min-height: 150px;
+            min-height: 100px;
         }
         
         .day-forecast {
             background: white;
             border-right: 1px solid #e0e0e0;
-            padding: 10px 5px;
+            padding: 5px 5px;
             text-align: center;
             transition: background-color 0.2s;
             position: relative;
             cursor: pointer;
             display: flex;
             flex-direction: column;
+			max-width: 101px;
         }
         
         .day-forecast:last-child {
@@ -247,9 +248,9 @@
         .day-temps {
             display: flex;
             justify-content: center;
-            gap: 8px;
+            gap: 8px; 
             font-size: 18px;
-            margin-bottom: 5px;
+            margin-bottom: 0px;
         }
         
         .day-high {
@@ -275,7 +276,7 @@
         
         /* Charts */
         .charts-wrapper {
-            padding: 15px;
+            padding: 3px;
             background: #fafafa;
             position: relative;
             overflow-x: auto;
@@ -283,7 +284,7 @@
         }
         
         .chart-section {
-            margin-bottom: 12px;
+            margin-bottom: 0px;
             position: relative;
         }
         
@@ -292,7 +293,7 @@
             background: #fff;
             border: 1px solid #e0e0e0;
             border-radius: 6px;
-            padding: 20px 10px 10px 10px;
+            padding: 20px 10px 5px 0px;
             overflow: hidden;
         }
         
@@ -309,7 +310,7 @@
         }
         
         .chart-container.wind-chart {
-            height: 120px;
+            height: 150px;
         }
         
         .chart-label {
@@ -670,15 +671,33 @@
         }
         
         function processGriddedDataToHourly(gridded) {
-            const now = new Date();
-            const startHour = new Date(now);
-            startHour.setMinutes(0, 0, 0);
-            
-            const hourlyData = [];
-            
-            for (let i = 0; i < 168; i++) {
-                const hourTime = new Date(startHour.getTime() + i * 3600000);
-                
+			// Find the earliest time in the gridded data
+			let earliestTime = null;
+			const now = new Date();
+			
+			// Check temperature values for the earliest time
+			if (gridded.temperature?.values?.length > 0) {
+				const firstValue = gridded.temperature.values[0];
+				const { startTime } = parseValidTime(firstValue.validTime);
+				earliestTime = startTime;
+			}
+			
+			// If no historical data found, start from current hour
+			if (!earliestTime || earliestTime >= now) {
+				earliestTime = new Date(now);
+				earliestTime.setMinutes(0, 0, 0);
+			}
+			
+			const hourlyData = [];
+			
+			// Calculate total hours from earliest to 7 days out
+			const endTime = new Date(now.getTime() + 7 * 24 * 3600000);
+			const totalHours = Math.ceil((endTime - earliestTime) / 3600000);
+
+					
+			for (let i = 0; i < totalHours; i++) {
+				 const hourTime = new Date(earliestTime.getTime() + i * 3600000);
+               
                 const tempC = getValueAtTime(gridded.temperature?.values, hourTime);
                 const tempF = tempC !== null ? Math.round(tempC * 9/5 + 32) : null;
                 
@@ -902,8 +921,14 @@
             
             const now = new Date();
             const currentHour = now.getHours();
+			const currentMinutes = now.getMinutes();
             const isPast5PM = currentHour >= 17;
-            
+			
+			// Calculate percentage of day passed (0 at midnight, 1 at 11:59 PM)
+			const percentOfDayPassed = (currentHour * 60 + currentMinutes) / (24 * 60);
+			// Calculate dynamic left padding: starts at 105px at midnight, ends at 5px at end of day
+			const dynamicLeftPadding = 5 + (101 * (1 - percentOfDayPassed));
+	
             // Create day groups based on boundaries
             const days = [];
             for (let i = 0; i < boundaries.length && i < 7; i++) {
@@ -947,32 +972,36 @@
             // Calculate total width for proper percentage
             const totalHours = hourlyData.length;
             
-            const html = days.map(day => {
-                const dayName = day.date.toLocaleDateString('en-US', { 
-                    weekday: 'short', 
-                    month: 'numeric',
-                    day: 'numeric'
-                });
-                
-                const widthPercent = (day.hoursCount / totalHours) * 100;
-                const highTemp = day.high !== null ? `${Math.round(day.high)}°` : '--';
-                
-                return `
-                    <div class="day-forecast" 
-                         style="flex: 0 0 ${widthPercent}%;"
-                         onclick="selectDay(${day.dayIndex})">
-                        <div class="day-name">${dayName}</div>
-                        <div class="day-icon">${getWeatherIcon(day.description, day.precipProb)}</div>
-                        <div class="day-temps">
-                            <span class="day-high">${highTemp}</span>
-                            <span class="day-low">${Math.round(day.low)}°</span>
-                        </div>
-                        <div class="day-detail">${day.description}</div>
-                    </div>
-                `;
-            }).join('');
-            
-            document.getElementById('dailyForecast').innerHTML = html;
+			// In the HTML generation part:
+			const html = days.map((day, index) => {
+				const dayName = day.date.toLocaleDateString('en-US', { 
+					weekday: 'short', 
+					month: 'numeric',
+					day: 'numeric'
+				});
+				
+				const widthPercent = (day.hoursCount / totalHours) * 100;
+				const highTemp = day.high !== null ? `${Math.round(day.high)}°` : '--';
+				
+				// Apply dynamic padding only to the first day (today)
+				const leftPadding = index === 0 ? dynamicLeftPadding : 5;
+				
+				return `
+					<div class="day-forecast" 
+						 style="flex: 0 0 ${widthPercent}%; max-width: 101px; padding-left: ${leftPadding}px;"
+						 onclick="selectDay(${day.dayIndex})">
+						<div class="day-name">${dayName}</div>
+						<div class="day-icon">${getWeatherIcon(day.description, day.precipProb)}</div>
+						<div class="day-temps">
+							<span class="day-high">${highTemp}</span>
+							<span class="day-low">${Math.round(day.low)}°</span>
+						</div>
+						<div class="day-detail">${day.description}</div>
+					</div>
+				`;
+			}).join('');
+			
+			document.getElementById('dailyForecast').innerHTML = html;
         }
         
         function selectDay(dayIndex) {
@@ -983,7 +1012,7 @@
             
             // Update selected day and show forecast
             selectedDayIndex = selectedDayIndex === dayIndex ? null : dayIndex;
-            showForecastForDay(selectedDayIndex);
+            showForecastForDay(dayIndex);
         }
         
         function getNightAnnotations(hourlyData) {
@@ -1033,7 +1062,7 @@
         
         function setupCrosshair() {
             const chartsContainer = document.getElementById('chartsContainer');
-            const canvases = chartsContainer.querySelectorAll('canvas');
+            const canvases = chartsContainer.querySelectorAll('.chart-container');
             
             canvases.forEach(canvas => {
                 // Mouse events
@@ -1048,11 +1077,19 @@
         }
         
         function handlePointerMove(e) {
-            const chartId = e.target.id;
-            const chart = charts[chartId];
-            if (!chart) return;
-            
-            const canvasPosition = Chart.helpers.getRelativePosition(e, chart);
+			const canvas = e.currentTarget.querySelector('canvas');
+			if (!canvas) return;
+			
+			const chartId = canvas.id;
+			const chart = charts[chartId];
+			if (!chart) return;
+			
+			const rect = canvas.getBoundingClientRect();
+			const x = e.clientX - rect.left;
+			const y = e.clientY - rect.top;
+			
+			const canvasPosition = { x: x, y: y };
+
             const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
             const index = Math.round(dataX);
             
@@ -1067,13 +1104,17 @@
         }
         
         function handleTouchMove(e) {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = e.target.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            
-            const chartId = e.target.id;
-            const chart = charts[chartId];
+			e.preventDefault();
+			const touch = e.touches[0];
+			const canvas = e.currentTarget.querySelector('canvas');
+			if (!canvas) return;
+			
+			const rect = canvas.getBoundingClientRect();
+			const x = touch.clientX - rect.left;
+			
+			const chartId = canvas.id;
+			const chart = charts[chartId];
+
             if (!chart) return;
             
             // Create a fake mouse event for Chart.js helper
@@ -1096,16 +1137,21 @@
             const crosshairLine = document.getElementById('crosshairLine');
             const crosshairTime = document.getElementById('crosshairTime');
             
-            crosshairLine.style.left = `${mouseX + 25}px`;
+            crosshairLine.style.left = `${mouseX + 3}px`;
             crosshairLine.style.display = 'block';
             
-            if (globalHourlyData && globalHourlyData[index]) {
-                const date = globalHourlyData[index].time;
-                const hour = date.getHours();
-                const timeStr = hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`;
-                crosshairTime.textContent = timeStr;
-                crosshairTime.style.display = 'block';
-            }
+			if (globalHourlyData && globalHourlyData[index]) {
+				const date = globalHourlyData[index].time;
+				const now = new Date();
+				const isHistorical = date < now;
+				
+				const dayStr = date.toLocaleDateString('en-US', { weekday: 'short' });
+				const hour = date.getHours();
+				const timeStr = hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`;
+				
+				crosshairTime.innerHTML = `${isHistorical ? '(Past)' : dayStr}<br>${timeStr}`;
+				crosshairTime.style.display = 'block';
+			}
             
             updateTooltipForChart('tempChart', 'tempTooltip', index, mouseX);
             updateTooltipForChart('combinedChart', 'combinedTooltip', index, mouseX);
@@ -1165,12 +1211,54 @@
                 tooltip.style.display = 'none';
             });
         }
-        
+ 
+		function hexToRgba(hex, alpha = 1) {
+			// Remove the # if present
+			hex = hex.replace(/^#/, '');
+
+			// Handle short form like #FFF
+			if (hex.length === 3) {
+				hex = hex.split('').map(c => c + c).join('');
+			}
+
+			const r = parseInt(hex.substring(0, 2), 16);
+			const g = parseInt(hex.substring(2, 4), 16);
+			const b = parseInt(hex.substring(4, 6), 16);
+
+			return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+		}
+ 
         function createCharts(hourlyData) {
-            globalHourlyData = hourlyData;
-            
-            const nightAnnotations = getNightAnnotations(hourlyData);
-            
+			globalHourlyData = hourlyData;
+			
+			// Calculate nowIndex once at the beginning
+			const now = new Date();
+			let nowIndex = -1;
+			hourlyData.forEach((hour, index) => {
+				if (nowIndex === -1 && hour.time >= now) {
+					nowIndex = index;
+				}
+			});
+	
+			const nightAnnotations = getNightAnnotations(hourlyData);
+			
+			// Add "now" line annotation
+			const nowLineAnnotation = nowIndex > 0 ? [{
+				type: 'line',
+				xMin: nowIndex - 0.5,
+				xMax: nowIndex - 0.5,
+				borderColor: 'rgba(0, 0, 0, .8)',
+				borderWidth: 1,
+				label: {
+					content: 'Now',
+					enabled: true,
+					position: 'start',
+					font: { size: 9 },
+					backgroundColor: 'rgba(255, 0, 0, 0.1)',
+					color: 'rgba(255, 0, 0, 0.8)'
+				}
+			}] : [];
+			
             // Use the global day boundaries for alignment
             const dayLineAnnotations = globalDayBoundaries.slice(1).map(boundary => ({
                 type: 'line',
@@ -1181,8 +1269,7 @@
                 borderDash: [4, 2]
             }));
             
-            const allAnnotations = [...nightAnnotations, ...dayLineAnnotations];
-            
+			const allAnnotations = [...nightAnnotations, ...dayLineAnnotations, ...nowLineAnnotation];            
             const labels = hourlyData.map(() => '');
             
             const commonOptions = {
@@ -1203,17 +1290,22 @@
                         annotations: allAnnotations
                     }
                 },
-                scales: {
-                    x: {
-                        grid: {
-                            display: false
-                        },
-                        ticks: {
-                            display: false
-                        }
-                    }
-                }
-            };
+				scales: {
+					x: {
+						grid: {
+							display: false
+						},
+						ticks: {
+							display: false
+						}
+					},
+					y: {
+						afterFit: (scaleInstance) => {
+							scaleInstance.width = 45; // Set fixed width for all y-axes
+						}
+					}
+				}
+			};
             
             // Temperature Chart
             charts['tempChart'] = new Chart(document.getElementById('tempChart'), {
@@ -1221,21 +1313,33 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Temperature',
+                        label: 'Temp',
                         data: hourlyData.map(h => h.temperature),
                         borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 0
+                        pointRadius: 0,
+						segment: {
+							borderColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('ef4444',0.5) : hexToRgba('ef4444',1);
+							},
+							backgroundColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('ef4444',0.05) : hexToRgba('ef4444',0.1);
+							}
+						}
                     }, {
-                        label: 'Feels Like',
+                        label: 'Feels',
                         data: hourlyData.map(h => h.feelsLike),
                         borderColor: '#AC54A0',
                         borderDash: [3, 3],
                         fill: false,
                         tension: 0.4,
-                        pointRadius: 0
+                        pointRadius: 0,
+						segment: {
+							borderColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('AC54A0',0.5) : hexToRgba('AC54A0',1);
+							}
+						}
                     }]
                 },
                 options: {
@@ -1243,7 +1347,8 @@
                     scales: {
                         ...commonOptions.scales,
                         y: {
-                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+							...commonOptions.scales.y,
+                           grid: { color: 'rgba(0, 0, 0, 0.05)' },
                             ticks: {
                                 callback: value => value + '°',
                                 font: { size: 9 }
@@ -1264,22 +1369,42 @@
                         borderColor: '#90D104',
                         fill: false,
                         tension: 0.4,
-                        pointRadius: 0
+                        pointRadius: 0,
+						segment: {
+							borderColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('90D104',0.5) : hexToRgba('90D104',1);
+							}
+						}
                     }, {
-                        label: 'Cloud Cover',
+                        label: 'Clouds',
                         data: hourlyData.map(h => h.cloudCover),
                         borderColor: '#6b7280',
-                        fill: false,
-                        tension: 0.4,
-                        pointRadius: 0
-                    }, {
-                        label: 'Precip Chance',
-                        data: hourlyData.map(h => h.precipProbability),
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 0
+                        pointRadius: 0,
+						segment: {
+							borderColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('6b7280',0.5) : hexToRgba('6b7280',1);
+							},
+							backgroundColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('6b7280',0.05) : hexToRgba('6b7280',0.2);
+							}
+						}
+                    }, {
+                        label: 'Precip',
+                        data: hourlyData.map(h => h.precipProbability),
+                        borderColor: '#3b82f6',
+                       fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+						segment: {
+							borderColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('3b82f6',0.5) : hexToRgba('3b82f6',1);
+							},
+							backgroundColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('3b82f6',0.05) : hexToRgba('3b82f6',0.2);
+							}
+						}
                     }]
                 },
                 options: {
@@ -1287,7 +1412,8 @@
                     scales: {
                         ...commonOptions.scales,
                         y: {
-                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+							...commonOptions.scales.y,
+                           grid: { color: 'rgba(0, 0, 0, 0.05)' },
                             ticks: {
                                 callback: value => value + '%',
                                 font: { size: 9 }
@@ -1317,7 +1443,8 @@
                     scales: {
                         ...commonOptions.scales,
                         y: {
-                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+ 							...commonOptions.scales.y,
+                           grid: { color: 'rgba(0, 0, 0, 0.05)' },
                             ticks: {
                                 callback: value => value.toFixed(2) + '"',
                                 font: { size: 9 }
@@ -1342,22 +1469,35 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Wind Gusts',
+                        label: 'Gusts',
                         data: windGusts,
-                        borderColor: '#dc2626',
+                        borderColor: '#D65011',
                         borderDash: [2, 2],
                         fill: false,
                         tension: 0.4,
                         pointRadius: 0,
-                        spanGaps: true
+                        spanGaps: true,
+						segment: {
+							borderColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('D65011',0.5) : hexToRgba('D65011',1);
+							}
+						}
                     }, {
-                        label: 'Wind Speed',
+                        label: 'Speed',
                         data: windSpeeds,
-                        borderColor: '#10b981',
+                        borderColor: '#B58635',
                         backgroundColor: 'rgba(16, 185, 129, 0.1)',
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 0
+                        pointRadius: 0,
+						segment: {
+							borderColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('B58635',0.5) : hexToRgba('B58635',1);
+							},
+							backgroundColor: (ctx) => {
+								return ctx.p0DataIndex < nowIndex ? hexToRgba('B58635',0.05) : hexToRgba('B58635',0.2);
+							}
+						}
                     }]
                 },
                 options: {
@@ -1365,6 +1505,7 @@
                     scales: {
                         ...commonOptions.scales,
                         y: {
+							...commonOptions.scales.y,
                             grid: { color: 'rgba(0, 0, 0, 0.05)' },
                             ticks: {
                                 callback: value => value + ' mph',
@@ -1417,4 +1558,3 @@
 
 </body>
 </html>
-
