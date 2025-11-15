@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,7 +23,7 @@
         
         .main-container {
             max-width: 800px;
-            margin: 0 auto;
+           margin: 0 auto;
             background-color: #fff;
             border-radius: 12px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -169,8 +170,8 @@
             transform-origin: center;
         }
 		
-        /* Current Forecast Section */
-        .current-forecast {
+        /* Detailed Forecast Section */
+        .detailed-forecast {
             background: #f8f9fa;
             border-bottom: 1px solid #e0e0e0;
             padding: 10px 20px;
@@ -223,6 +224,7 @@
             display: flex;
             flex-direction: column;
 			max-width: 101px;
+ 			min-width: 8px;
         }
         
         .day-forecast:last-child {
@@ -281,6 +283,7 @@
             position: relative;
             overflow-x: auto;
             touch-action: pan-y;
+			min-width: 700px;
         }
         
         .chart-section {
@@ -387,13 +390,16 @@
     <div class="main-container">
         <div class="header">
             <div class="header-left">
-                <h1>📍 <span id="locationName">Tysons, Virginia</span></h1>
+                <h1><span id="locationName">Tysons, Virginia</span></h1>
                 <div class="subtitle" id="locationDetails">Loading...</div>
                 <div class="last-updated" id="lastUpdated">Last updated: --</div>
             </div>
-            <div class="location-search">
-                <input type="text" id="locationInput" placeholder="Search location..." />
-                <button onclick="searchLocation()">Go</button>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button onclick="useMyLocation()" style="background: rgba(255, 255, 255, 0.2); border: none; color: white; padding: 5px 10px; border-radius: 15px; cursor: pointer; font-size: 12px;" title="Use GPS location">⊕ My Location</button>
+                <div class="location-search">
+                    <input type="text" id="locationInput" placeholder="Search location..." />
+                    <button onclick="searchLocation()">Go</button>
+                </div>
             </div>
         </div>
         
@@ -402,8 +408,8 @@
             <div class="loading">Loading current conditions...</div>
         </div>
         
-        <!-- Current Forecast Details -->
-        <div class="current-forecast" id="currentForecast" style="display: none;">
+        <!-- Detailed Forecast Details -->
+        <div class="detailed-forecast" id="detailedForcast" style="display: none;">
             <!-- Detailed forecast will be inserted here -->
         </div>
         
@@ -481,7 +487,6 @@
         // Register annotation plugin
         Chart.register(window['chartjs-plugin-annotation']);
         
-        // Location search function
         async function searchLocation() {
             const input = document.getElementById('locationInput').value.trim();
             if (!input) return;
@@ -496,6 +501,9 @@
                     currentLon = parseFloat(location.lon);
                     currentLocationName = location.display_name.split(',').slice(0, 2).join(', ');
                     document.getElementById('locationName').textContent = currentLocationName;
+                    
+                    // ADD THIS LINE - Update URL with new location
+                    updateURL(currentLat, currentLon, currentLocationName);
                     
                     // Reset elevation when changing locations
                     currentElevation = null;
@@ -533,6 +541,11 @@
             document.getElementById('locationDetails').textContent = `${coordsText}${elevText ? ' • ' + elevText : ''}`;
         }
         
+
+		
+		
+		
+		
         // Utility functions
         function parseValidTime(validTimeStr) {
             const [timeStr, durationStr] = validTimeStr.split('/');
@@ -567,7 +580,8 @@
         }
         
         function calculateFeelsLike(temp, humidity, windSpeed) {
-            if (temp <= 50 && windSpeed > 3) {
+		console.log("test");
+           if (temp <= 50 && windSpeed > 3) {
                 return Math.round(35.74 + 0.6215 * temp - 35.75 * Math.pow(windSpeed, 0.16) + 0.4275 * temp * Math.pow(windSpeed, 0.16));
             } else if (temp >= 80) {
                 const c1 = -42.379, c2 = 2.04901523, c3 = 10.14333127;
@@ -577,8 +591,10 @@
                 let heatIndex = c1 + c2*temp + c3*humidity + c4*temp*humidity + c5*temp*temp + 
                                c6*humidity*humidity + c7*temp*temp*humidity + c8*temp*humidity*humidity + 
                                c9*temp*temp*humidity*humidity;
+				console.log(Math.round(heatIndex));			   
                 return Math.round(heatIndex);
             }
+			console.log(Math.round(temp));
             return Math.round(temp);
         }
         
@@ -718,9 +734,36 @@
                 const precipAmountIn = precipAmountMm * 0.0393701;
                 
                 const apparentTempC = getValueAtTime(gridded.apparentTemperature?.values, hourTime);
-                const feelsLike = apparentTempC !== null ? 
-                    Math.round(apparentTempC * 9/5 + 32) : 
-                    (tempF !== null ? calculateFeelsLike(tempF, humidity, windSpeedMph) : null);
+				
+				let feelsLike = null;
+				
+				// VALIDATION: Check if apparent temperature from API is realistic
+				// Apparent temp should be within reasonable bounds of actual temp
+				// and never below -60°C (-76°F) or above 60°C (140°F) for populated areas
+				const isRealisticApparentTemp = (tempC, apparentC) => {
+					if (apparentC === null || apparentC === undefined) return false;
+					if (apparentC < -60 || apparentC > 60) return false;  // Absolute bounds check
+					if (tempC !== null) {
+						// Apparent temp shouldn't differ from actual by more than 30°C
+						const diff = Math.abs(apparentC - tempC);
+						if (diff > 30) return false;
+					}
+					return true;
+				};
+				
+				if (apparentTempC !== null && isRealisticApparentTemp(tempC, apparentTempC)) {
+					// API value is reasonable, use it
+					feelsLike = Math.round(apparentTempC * 9/5 + 32);
+				} else {
+					// API value is bad or missing, calculate it ourselves
+					if (apparentTempC !== null && !isRealisticApparentTemp(tempC, apparentTempC)) {
+						console.warn(`Bad apparent temp from API at ${hourTime.toISOString()}: ${apparentTempC}°C (${Math.round(apparentTempC * 9/5 + 32)}°F), actual temp: ${tempC}°C - calculating instead`);
+					}
+					
+					if (tempF !== null) {
+						feelsLike = calculateFeelsLike(tempF, humidity, windSpeedMph);
+					}
+				}
                 
                 const weather = getValueAtTime(gridded.weather?.values, hourTime);
                 
@@ -786,7 +829,7 @@
         
         function showForecastForDay(dayIndex) {
             if (dayIndex === null || !globalDailyPeriods.length) {
-                createCurrentForecast(globalDailyPeriods);
+                createDetailedForcast(globalDailyPeriods);
                 return;
             }
             
@@ -829,11 +872,11 @@
                 `;
             }
             
-            document.getElementById('currentForecast').innerHTML = html;
-            document.getElementById('currentForecast').style.display = 'block';
+            document.getElementById('detailedForcast').innerHTML = html;
+            document.getElementById('detailedForcast').style.display = 'block';
         }
         
-        function createCurrentForecast(dailyPeriods) {
+        function createDetailedForcast(dailyPeriods) {
             const now = new Date();
             const currentHour = now.getHours();
             
@@ -874,7 +917,7 @@
             }
             
             if (!firstPeriod && !secondPeriod) {
-                document.getElementById('currentForecast').style.display = 'none';
+                document.getElementById('detailedForcast').style.display = 'none';
                 return;
             }
             
@@ -898,8 +941,8 @@
                 `;
             }
             
-            document.getElementById('currentForecast').innerHTML = html;
-            document.getElementById('currentForecast').style.display = 'block';
+            document.getElementById('detailedForcast').innerHTML = html;
+            document.getElementById('detailedForcast').style.display = 'block';
         }
         
         function createDailyForecast(dailyPeriods, hourlyData) {
@@ -1522,6 +1565,177 @@
             setTimeout(setupCrosshair, 100);
         }
         
+		// URL Parameter Functions
+		function getLocationFromURL() {
+			const params = new URLSearchParams(window.location.search);
+			const lat = params.get('lat');
+			const lon = params.get('lon');
+			const name = params.get('name');
+			
+			if (lat && lon) {
+				const latitude = parseFloat(lat);
+				const longitude = parseFloat(lon);
+				
+				// Validate coordinates
+				if (!isNaN(latitude) && !isNaN(longitude) && 
+					latitude >= -90 && latitude <= 90 && 
+					longitude >= -180 && longitude <= 180) {
+					
+					return {
+						lat: latitude,
+						lon: longitude,
+						name: name ? decodeURIComponent(name) : null
+					};
+				}
+			}
+			
+			return null;
+		}
+
+		function updateURL(lat, lon, locationName) {
+			const params = new URLSearchParams();
+			params.set('lat', lat.toFixed(4));
+			params.set('lon', lon.toFixed(4));
+			
+			if (locationName) {
+				params.set('name', encodeURIComponent(locationName));
+			}
+			
+			// Update URL without reloading the page
+			const newURL = window.location.pathname + '?' + params.toString();
+			window.history.replaceState({ lat, lon, name: locationName }, '', newURL);
+		}
+
+        // Function to get user's GPS location
+        function useMyLocation() {
+            if (navigator.geolocation) {
+                // Show loading state
+                document.getElementById('locationName').textContent = 'Getting location...';
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('chartsContainer').style.display = 'none';
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        // Success! We got the location
+                        currentLat = position.coords.latitude;
+                        currentLon = position.coords.longitude;
+                        
+                        console.log('GPS Location obtained:', currentLat, currentLon);
+                        
+                        // Get location name from coordinates
+                        reverseGeocode(currentLat, currentLon);
+                        
+                        // Reset elevation for new location
+                        currentElevation = null;
+                        
+                        // Destroy existing charts
+                        Object.values(charts).forEach(chart => {
+                            if (chart) chart.destroy();
+                        });
+                        charts = {};
+                        
+                        // Reinitialize with new location
+                        initializeForecast();
+                    },
+                    (error) => {
+                        // Handle errors
+                        let errorMessage = 'Could not get your location. ';
+                        
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage += 'Please allow location access and try again.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage += 'Location information is unavailable.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage += 'Location request timed out.';
+                                break;
+                            default:
+                                errorMessage += 'An unknown error occurred.';
+                        }
+                        
+                        alert(errorMessage);
+                        console.error('Geolocation error:', error);
+                        
+                        // Restore previous location name
+                        document.getElementById('locationName').textContent = currentLocationName;
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('chartsContainer').style.display = 'block';
+                    },
+                    {
+                        enableHighAccuracy: true,  // Use GPS if available
+                        timeout: 10000,            // Wait up to 10 seconds
+                        maximumAge: 0              // Don't use cached location
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by your browser.');
+            }
+        }
+
+
+        // Initialize with URL parameters or default location
+        function initializeApp() {
+            const urlLocation = getLocationFromURL();
+            
+            if (urlLocation) {
+                // Use location from URL
+                currentLat = urlLocation.lat;
+                currentLon = urlLocation.lon;
+                
+                if (urlLocation.name) {
+                    currentLocationName = urlLocation.name;
+                    document.getElementById('locationName').textContent = currentLocationName;
+                } else {
+                    // If no name provided, reverse geocode to get the name
+                    reverseGeocode(currentLat, currentLon);
+                }
+            } else {
+                // No URL parameters, use default location and update URL
+                updateURL(currentLat, currentLon, currentLocationName);
+            }
+            
+            initializeForecast();
+        }
+
+        // Reverse geocoding function
+        async function reverseGeocode(lat, lon) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                const data = await response.json();
+                
+                if (data && data.display_name) {
+                    currentLocationName = data.display_name.split(',').slice(0, 2).join(', ');
+                    document.getElementById('locationName').textContent = currentLocationName;
+                    updateURL(lat, lon, currentLocationName);
+                }
+            } catch (error) {
+                console.error('Reverse geocoding error:', error);
+                currentLocationName = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+                document.getElementById('locationName').textContent = currentLocationName;
+            }
+        }
+
+        // Handle browser back/forward buttons
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.lat && event.state.lon) {
+                currentLat = event.state.lat;
+                currentLon = event.state.lon;
+                currentLocationName = event.state.name || `${currentLat.toFixed(4)}°, ${currentLon.toFixed(4)}°`;
+                document.getElementById('locationName').textContent = currentLocationName;
+                
+                // Destroy existing charts before reinitializing
+                Object.values(charts).forEach(chart => {
+                    if (chart) chart.destroy();
+                });
+                charts = {};
+                
+                initializeForecast();
+            }
+        });
+
+
         async function initializeForecast() {
             try {
                 document.getElementById('loading').style.display = 'block';
@@ -1539,7 +1753,7 @@
                 const hourlyData = processGriddedDataToHourly(data.gridded);
                 
                 createCurrentConditions(hourlyData);
-                createCurrentForecast(data.daily);
+                createDetailedForcast(data.daily);
                 createDailyForecast(data.daily, hourlyData);
                 
                 document.getElementById('loading').style.display = 'none';
@@ -1552,7 +1766,14 @@
             }
         }
         
-        initializeForecast();
+                // NEW:
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            // DOM is already loaded
+            initializeApp();
+        }
         setInterval(initializeForecast, 30 * 60 * 1000);
     </script>
 
