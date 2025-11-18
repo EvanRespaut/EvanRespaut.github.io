@@ -208,9 +208,9 @@
         }
         
         .daily-forecast-container {
-            display: flex;
+            display: block;
             position: relative;
-            min-height: 100px;
+            min-height: 140px;
         }
         
         .day-forecast {
@@ -223,8 +223,10 @@
             cursor: pointer;
             display: flex;
             flex-direction: column;
+			/* Remove these flex-based properties:
 			max-width: 101px;
  			min-width: 87px;
+			    */
         }
         
         .day-forecast:last-child {
@@ -954,6 +956,68 @@
         }
         
 		
+		
+		function alignDailyForecastWithChart() {
+			const chart = charts['tempChart'];
+			if (!chart) return;
+			
+			const totalOffsetLeft = -7;
+			const dayElements = document.querySelectorAll('.day-forecast');
+			
+			// Position each day element based on chart boundaries
+			globalDayBoundaries.forEach((boundaryIndex, dayIndex) => {
+				if (dayIndex >= dayElements.length) return;
+				
+				const dayElement = dayElements[dayIndex];
+				
+				const startX = chart.scales.x.getPixelForValue(boundaryIndex);
+				
+				let endX;
+				if (dayIndex < globalDayBoundaries.length - 1) {
+					endX = chart.scales.x.getPixelForValue(globalDayBoundaries[dayIndex + 1]);
+				} else {
+					endX = chart.scales.x.getPixelForValue(globalHourlyData.length - 1);
+				}
+				
+				const width = endX - startX;
+				const left = totalOffsetLeft + startX;
+				
+				dayElement.style.position = 'absolute';
+				dayElement.style.left = `${left}px`;
+				dayElement.style.width = `${width}px`;
+				dayElement.style.maxWidth = 'none';
+				dayElement.style.minWidth = '0';
+				dayElement.style.height = 'auto';
+			});
+			
+			// After positioning all elements, measure heights and adjust container
+			requestAnimationFrame(() => {
+				let maxHeight = 0;
+				
+				dayElements.forEach(dayElement => {
+					const elementHeight = dayElement.offsetHeight;
+					if (elementHeight > maxHeight) {
+						maxHeight = elementHeight;
+					}
+				});
+				
+				// Set container height to the tallest element
+				const dailyContainer = document.querySelector('.daily-forecast-container');
+				dailyContainer.style.height = `${maxHeight}px`;
+				
+				// Calculate total width needed
+				const lastDayElement = dayElements[dayElements.length - 1];
+				if (lastDayElement) {
+					const lastRight = parseFloat(lastDayElement.style.left) + parseFloat(lastDayElement.style.width);
+					dailyContainer.style.width = `${lastRight}px`;
+				}
+			});
+			
+			console.log('Day boundaries aligned');
+		}
+		
+		
+		
 		function createDailyForecast(dailyPeriods, hourlyData) {
 			globalDailyPeriods = dailyPeriods;
 			
@@ -1073,8 +1137,8 @@
 			
 			// Calculate total width for proper percentage
 			const totalHours = hourlyData.length;
-			
-			// In the HTML generation part:
+
+			// Generate HTML without flex-based widths initially
 			const html = days.map((day, index) => {
 				const dayName = day.date.toLocaleDateString('en-US', { 
 					weekday: 'short', 
@@ -1082,16 +1146,12 @@
 					day: 'numeric'
 				});
 				
-				const widthPercent = (day.hoursCount / totalHours) * 100;
 				const highTemp = day.high !== null ? `${Math.round(day.high)}°` : '--';
 				const lowTemp = day.low !== null ? `${Math.round(day.low)}°` : '--';
 				
-				// Apply dynamic padding only to the first day (today)
-				const leftPadding = index === 0 ? dynamicLeftPadding : 5;
-				
 				return `
 					<div class="day-forecast" 
-						 style="flex: 0 0 ${widthPercent}%; max-width: 101px; padding-left: ${leftPadding}px;"
+						 data-day-index="${day.dayIndex}"
 						 onclick="selectDay(${day.dayIndex})">
 						<div class="day-name">${dayName}</div>
 						<div class="day-icon">${getWeatherIcon(day.description, day.precipProb)}</div>
@@ -1103,8 +1163,9 @@
 					</div>
 				`;
 			}).join('');
-			
+
 			document.getElementById('dailyForecast').innerHTML = html;
+
 		}
 
         
@@ -1164,6 +1225,7 @@
             return annotations;
         }
 		
+	
 		let touchStartX = null;
 		let touchStartY = null;
 		let isHorizontalSwipe = null;
@@ -1213,46 +1275,46 @@
 			isHorizontalSwipe = null; // Reset the swipe direction
 		}
         
-function handleTouchMove(e) {
-    const touch = e.touches[0];
-    
-    // Calculate the distance moved
-    const deltaX = Math.abs(touch.clientX - touchStartX);
-    const deltaY = Math.abs(touch.clientY - touchStartY);
-    
-    // Determine swipe direction on first significant movement
-    if (isHorizontalSwipe === null && (deltaX > 10 || deltaY > 10)) {
-        // If horizontal movement is greater than vertical, it's a horizontal swipe
-        isHorizontalSwipe = deltaX > (deltaY * 1.5); // Require more horizontal movement
-    }
-    
-    // If it's a vertical swipe, allow normal scrolling
-    if (isHorizontalSwipe === false) {
-        return; // Don't prevent default, allow normal vertical scrolling
-    }
-    
-    // If it's a horizontal swipe, show crosshair (CSS will prevent scrolling)
-    if (isHorizontalSwipe === true) {
-        const canvas = e.currentTarget.querySelector('canvas');
-        if (!canvas) return;
-        
-        const rect = canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        
-        const chartId = canvas.id;
-        const chart = charts[chartId];
-        
-        if (!chart) return;
-        
-        const canvasPosition = { x: x, y: touch.clientY - rect.top };
-        const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
-        const index = Math.round(dataX);
-        
-        if (index >= 0 && index < chart.data.labels.length && globalHourlyData && globalHourlyData[index]) {
-            updateCrosshair(index, canvasPosition.x);
-        }
-    }
-}
+		function handleTouchMove(e) {
+			const touch = e.touches[0];
+			
+			// Calculate the distance moved
+			const deltaX = Math.abs(touch.clientX - touchStartX);
+			const deltaY = Math.abs(touch.clientY - touchStartY);
+			
+			// Determine swipe direction on first significant movement
+			if (isHorizontalSwipe === null && (deltaX > 10 || deltaY > 10)) {
+				// If horizontal movement is greater than vertical, it's a horizontal swipe
+				isHorizontalSwipe = deltaX > deltaY ; 
+			}
+			
+			// If it's a vertical swipe, allow normal scrolling
+			if (isHorizontalSwipe === false) {
+				return; // Don't prevent default, allow normal vertical scrolling
+			}
+			
+			// If it's a horizontal swipe, show crosshair (CSS will prevent scrolling)
+			if (isHorizontalSwipe === true) {
+				const canvas = e.currentTarget.querySelector('canvas');
+				if (!canvas) return;
+				
+				const rect = canvas.getBoundingClientRect();
+				const x = touch.clientX - rect.left;
+				
+				const chartId = canvas.id;
+				const chart = charts[chartId];
+				
+				if (!chart) return;
+				
+				const canvasPosition = { x: x, y: touch.clientY - rect.top };
+				const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+				const index = Math.round(dataX);
+				
+				if (index >= 0 && index < chart.data.labels.length && globalHourlyData && globalHourlyData[index]) {
+					updateCrosshair(index, canvasPosition.x);
+				}
+			}
+		}
 		
 		function handleTouchEnd(e) {
 			// Reset touch tracking variables
@@ -1653,6 +1715,10 @@ function handleTouchMove(e) {
             });
             
             setTimeout(setupCrosshair, 100);
+				
+			setTimeout(() => {
+				alignDailyForecastWithChart();
+			}, 200);			
         }
         
 		// URL Parameter Functions
@@ -1824,7 +1890,12 @@ function handleTouchMove(e) {
                 initializeForecast();
             }
         });
-
+		
+		window.addEventListener('resize', () => {
+			if (charts['tempChart']) {
+				setTimeout(alignDailyForecastWithChart, 100);
+			}
+		});
 
         async function initializeForecast() {
             try {
