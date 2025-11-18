@@ -282,7 +282,7 @@
             background: #fafafa;
             position: relative;
             overflow-x: auto;
-			/* touch-action: pan-y; */
+			touch-action: pan-y; 
 			min-width: 700px;
         }
         
@@ -380,7 +380,6 @@
         canvas {
             max-height: 100%;
             cursor: crosshair;
-            touch-action: none;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1214,55 +1213,46 @@
 			isHorizontalSwipe = null; // Reset the swipe direction
 		}
         
-		function handleTouchMove(e) {
-			const touch = e.touches[0];
-			
-			// Calculate the distance moved
-			const deltaX = Math.abs(touch.clientX - touchStartX);
-			const deltaY = Math.abs(touch.clientY - touchStartY);
-			
-			// Determine swipe direction on first significant movement
-			if (isHorizontalSwipe === null && (deltaX > 5 || deltaY > 5)) {
-				// If horizontal movement is greater than vertical, it's a horizontal swipe
-				isHorizontalSwipe = deltaX > deltaY;
-			}
-			
-			// If it's a vertical swipe, allow normal scrolling
-			if (isHorizontalSwipe === false) {
-				return; // Don't prevent default, allow normal vertical scrolling
-			}
-			
-			// If it's a horizontal swipe, prevent scrolling and show crosshair
-			if (isHorizontalSwipe === true) {
-				e.preventDefault(); // Only prevent default for horizontal swipes
-				
-				const canvas = e.currentTarget.querySelector('canvas');
-				if (!canvas) return;
-				
-				const rect = canvas.getBoundingClientRect();
-				const x = touch.clientX - rect.left;
-				
-				const chartId = canvas.id;
-				const chart = charts[chartId];
-				
-				if (!chart) return;
-				
-				// Create a fake mouse event for Chart.js helper
-				const fakeEvent = {
-					native: touch,
-					x: x,
-					y: touch.clientY - rect.top
-				};
-				
-				const canvasPosition = Chart.helpers.getRelativePosition(fakeEvent, chart);
-				const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
-				const index = Math.round(dataX);
-				
-				if (index >= 0 && index < chart.data.labels.length && globalHourlyData && globalHourlyData[index]) {
-					updateCrosshair(index, canvasPosition.x);
-				}
-			}
-		}
+function handleTouchMove(e) {
+    const touch = e.touches[0];
+    
+    // Calculate the distance moved
+    const deltaX = Math.abs(touch.clientX - touchStartX);
+    const deltaY = Math.abs(touch.clientY - touchStartY);
+    
+    // Determine swipe direction on first significant movement
+    if (isHorizontalSwipe === null && (deltaX > 10 || deltaY > 10)) {
+        // If horizontal movement is greater than vertical, it's a horizontal swipe
+        isHorizontalSwipe = deltaX > (deltaY * 1.5); // Require more horizontal movement
+    }
+    
+    // If it's a vertical swipe, allow normal scrolling
+    if (isHorizontalSwipe === false) {
+        return; // Don't prevent default, allow normal vertical scrolling
+    }
+    
+    // If it's a horizontal swipe, show crosshair (CSS will prevent scrolling)
+    if (isHorizontalSwipe === true) {
+        const canvas = e.currentTarget.querySelector('canvas');
+        if (!canvas) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        
+        const chartId = canvas.id;
+        const chart = charts[chartId];
+        
+        if (!chart) return;
+        
+        const canvasPosition = { x: x, y: touch.clientY - rect.top };
+        const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+        const index = Math.round(dataX);
+        
+        if (index >= 0 && index < chart.data.labels.length && globalHourlyData && globalHourlyData[index]) {
+            updateCrosshair(index, canvasPosition.x);
+        }
+    }
+}
 		
 		function handleTouchEnd(e) {
 			// Reset touch tracking variables
