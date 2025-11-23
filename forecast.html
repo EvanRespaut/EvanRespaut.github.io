@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -658,6 +659,7 @@
         
         async function getForecastData() {
             try {
+                // https://api.weather.gov/gridpoints/LWX/90,71/forecast/hourly
                 const gridResponse = await fetch(`https://api.weather.gov/points/${currentLat},${currentLon}`);
                 if (!gridResponse.ok) throw new Error(`Grid API Error: ${gridResponse.status}`);
                 const gridData = await gridResponse.json();
@@ -795,7 +797,16 @@
                 return;
             }
             
-            const current = hourlyData[0];
+            // Find the current hour in the hourly data
+            const now = new Date();
+            let currentIndex = 0;
+            for (let i = 0; i < hourlyData.length; i++) {
+                if (hourlyData[i].time >= now) {
+                    currentIndex = i;
+                    break;
+                }
+            }
+            const current = hourlyData[currentIndex];
             
             const html = `
                 <div class="current-temp">
@@ -970,17 +981,27 @@
 				
 				const dayElement = dayElements[dayIndex];
 				
-				const startX = chart.scales.x.getPixelForValue(boundaryIndex);
-				
-				let endX;
-				if (dayIndex < globalDayBoundaries.length - 1) {
-					endX = chart.scales.x.getPixelForValue(globalDayBoundaries[dayIndex + 1]);
-				} else {
-					endX = chart.scales.x.getPixelForValue(globalHourlyData.length - 1);
-				}
-				
-				const width = endX - startX;
-				const left = totalOffsetLeft + startX;
+            let startX, left;
+
+            // For the first day, extend to the left edge
+            if (dayIndex === 0) {
+                startX = 0;  // Start from left edge
+                left = totalOffsetLeft;  // Start from the left
+            } else {
+                startX = chart.scales.x.getPixelForValue(boundaryIndex);
+                left = totalOffsetLeft + startX;
+            }
+
+            let endX;
+            if (dayIndex < globalDayBoundaries.length - 1) {
+                endX = chart.scales.x.getPixelForValue(globalDayBoundaries[dayIndex + 1]);
+            } else {
+                endX = chart.scales.x.getPixelForValue(globalHourlyData.length - 1);
+            }
+
+            const width = dayIndex === 0 ? 
+                (endX - chart.scales.x.getPixelForValue(boundaryIndex) + chart.scales.x.getPixelForValue(boundaryIndex)) : 
+                (endX - startX);
 				
 				dayElement.style.position = 'absolute';
 				dayElement.style.left = `${left}px`;
@@ -1039,7 +1060,17 @@
 			const currentHour = now.getHours();
 			const currentMinutes = now.getMinutes();
 			const isPast5PM = currentHour >= 17;
-			
+
+            // Check if first data point is from a previous day
+            const firstDataDay = hourlyData[0].time.toDateString();
+            const todayString = now.toDateString();
+            const hasHistoricalDayData = firstDataDay !== todayString && hourlyData[0].time < now;
+			// console.log("hourlyData[0].time = ")
+			// console.log(hourlyData[0].time)
+			// console.log("now = ")
+			// console.log(now)
+
+
 			// Calculate percentage of day passed (0 at midnight, 1 at 11:59 PM)
 			const percentOfDayPassed = (currentHour * 60 + currentMinutes) / (24 * 60);
 			// Calculate dynamic left padding: starts at 105px at midnight, ends at 5px at end of day
@@ -1084,9 +1115,9 @@
 							const hourOfDay = hourTime.getHours();
 							const dayDiff = Math.floor((hourTime - date) / (24 * 60 * 60 * 1000));
 							
-							// Include hours from 9am today to 9am tomorrow
-							if (dayDiff === 0 && hourOfDay >= 9) {
-								// Same day, after 9am
+							// Include hours from 3pm today to 9am tomorrow
+							if (dayDiff === 0 && hourOfDay >= 15) {
+								// Same day, after 3pm
 								lowTempHours.push(hour);
 							} else if (dayDiff === 1 && hourOfDay < 9) {
 								// Next day, before 9am
@@ -1130,7 +1161,8 @@
 						precipProb: maxPrecipProb,
 						description: dayPeriod ? dayPeriod.shortForecast : dayHours[Math.floor(dayHours.length / 2)].description,
 						dayIndex: i,
-						isToday: isToday
+						isToday: isToday,
+                        shouldHide: i === 0 && hasHistoricalDayData  // Hide first day if it contains historical data from yesterday
 					});
 				}
 			}
@@ -1140,6 +1172,11 @@
 
 			// Generate HTML without flex-based widths initially
 			const html = days.map((day, index) => {
+                // If this day should be hidden, return empty placeholder
+                if (day.shouldHide) {
+                    return `<div class="day-forecast" data-day-index="${day.dayIndex}" style="visibility: hidden;"></div>`;
+                }
+
 				const dayName = day.date.toLocaleDateString('en-US', { 
 					weekday: 'short', 
 					month: 'numeric',
