@@ -855,7 +855,8 @@
 			
 			// For other days, show the day of week format
 			// Find the matching daily periods for the selected day
-			const dayOffset = dayIndex * 2;
+			const firstPeriodIsNight = !globalDailyPeriods[0].isDaytime;
+			const dayOffset = firstPeriodIsNight ? (dayIndex * 2 - 1) : (dayIndex * 2);
 			let dayPeriod = null;
 			let nightPeriod = null;
 			
@@ -1977,3 +1978,4 @@
 
 </body>
 </html>
+
