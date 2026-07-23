@@ -472,9 +472,9 @@
     <script>
         // Global variables
         let charts = {};
-        let currentLat = 38.92;
-        let currentLon = -77.23;
-        let currentLocationName = "Tysons, Virginia";
+        let currentLat = 38.9014;
+        let currentLon = -77.2652;
+        let currentLocationName = "Vienna, Virginia";
         let currentElevation = null;
         let globalHourlyData = null;
         let globalDayBoundaries = [];
@@ -1476,7 +1476,6 @@
                         label: 'Dewpoint',
                         data: hourlyData.map(h => h.dewpoint),
                         borderColor: '#059669',
-                        borderDash: [2, 2],
                         fill: false,
                         tension: 0.4,
                         pointRadius: 0,
