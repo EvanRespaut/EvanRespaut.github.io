@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather Forecast</title>
+    <title>NWS Weather Forecast</title>
+    <meta name="description" content="Interactive weather forecast dashboard featuring hourly temperature, wind, humidity, and precipitation charts powered by the National Weather Service." />
+    <meta property="og:title" content="NWS Weather Forecast" />
+    <meta property="og:description" content="Interactive weather forecast dashboard featuring hourly temperature, wind, humidity, and precipitation charts powered by the National Weather Service." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
     <style>
         * {
             margin: 0;
@@ -14,10 +19,12 @@
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background-color: #f0f2f5;
+            color: #333;
             padding: 20px;
             -webkit-touch-callout: none;
             -webkit-user-select: none;
             user-select: none;
+            transition: background-color 0.25s ease, color 0.25s ease;
         }
         
         .main-container {
@@ -27,6 +34,7 @@
             border-radius: 12px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             overflow: hidden;
+            transition: background-color 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
         }
         
         .header {
@@ -36,10 +44,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            transition: background 0.3s ease;
         }
         
         .header-left {
             flex: 1;
+            min-width: 200px;
         }
         
         .header-left h1 {
@@ -51,6 +63,13 @@
             opacity: 0.9;
             font-size: 11px;
             margin-top: 3px;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
         }
         
         /* Location Search */
@@ -64,7 +83,7 @@
             transition: background 0.2s;
         }
         
-        .location-search:hover {
+        .location-search:hover, .location-search:focus-within {
             background: rgba(255, 255, 255, 0.3);
         }
         
@@ -73,7 +92,7 @@
             border: none;
             color: white;
             outline: none;
-            width: 150px;
+            width: 165px;
             font-size: 13px;
         }
         
@@ -85,14 +104,69 @@
             background: rgba(255, 255, 255, 0.3);
             border: none;
             color: white;
-            padding: 2px 8px;
+            padding: 2px 10px;
             border-radius: 10px;
             cursor: pointer;
             font-size: 12px;
+            font-weight: 500;
+            transition: background 0.2s;
         }
         
         .location-search button:hover {
-            background: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.45);
+        }
+
+        .location-search button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .header-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 14px;
+            cursor: pointer;
+            font-size: 11px;
+            white-space: nowrap;
+            transition: background 0.2s, transform 0.1s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .header-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        .header-btn:active {
+            transform: scale(0.97);
+        }
+
+        .recent-locations {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .recent-btn {
+            background: rgba(255, 255, 255, 0.18);
+            font-weight: 500;
+        }
+
+        .recent-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
         }
         
         .last-updated {
@@ -101,15 +175,107 @@
             margin-top: 5px;
         }
         
-        /* Current Conditions */
-        .current-conditions {
+        /* Current Conditions Wrapper & Section */
+        .current-conditions-wrapper {
+            position: relative;
             background: #fff;
             border-bottom: 1px solid #e0e0e0;
-            padding: 15px;
+            min-height: 75px;
+            transition: background-color 0.25s ease, border-color 0.25s ease;
+        }
+
+        .current-conditions {
+            min-height: 75px;
+            box-sizing: border-box;
+            padding: 15px 125px 15px 15px; /* Leave generous room on right for the right-column controls without resizing */
             display: flex;
             align-items: center;
             gap: 20px;
             overflow-x: auto;
+            border-bottom: none;
+        }
+
+        .current-conditions .loading {
+            padding: 0;
+            margin: 0;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            color: #64748b;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        /* Right column for Theme button and Sunrise/Sunset times */
+        .current-conditions-right-column {
+            position: absolute;
+            top: 11px;
+            bottom: 12px;
+            right: 14px;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+
+        .theme-toggle-btn {
+            pointer-events: auto;
+            background: #f8fafc;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            padding: 3px 9px;
+            border-radius: 13px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            line-height: 1.2;
+        }
+
+        .theme-toggle-btn:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+            border-color: #94a3b8;
+        }
+
+        .sun-times-display {
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+
+        .sun-time-row {
+            display: flex;
+            align-items: baseline;
+            gap: 5px;
+        }
+
+        .sun-label {
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #64748b;
+            opacity: 0.85;
+        }
+
+        .sun-time-val {
+            font-size: 11px;
+            font-weight: 600;
+            color: #1e293b;
         }
         
         .current-temp {
@@ -119,17 +285,20 @@
             padding-right: 20px;
             border-right: 1px solid #e0e0e0;
             min-width: 120px;
+            transition: border-color 0.25s ease;
         }
         
         .current-temp-value {
             font-size: 45px;
             font-weight: 300;
             line-height: 1;
+            transition: color 0.25s ease;
         }
         
         .current-temp-feels {
             font-size: 15px;
             color: #666;
+            transition: color 0.25s ease;
         }
         
         .current-condition-icon {
@@ -155,12 +324,14 @@
             display: flex;
             align-items: center;
             gap: 3px;
+            transition: color 0.25s ease;
         }
         
         .current-stat-label {
             font-size: 10px;
             color: #666;
             margin-top: 2px;
+            transition: color 0.25s ease;
         }
                 
         .wind-arrow {
@@ -174,6 +345,7 @@
             background: #f8f9fa;
             border-bottom: 1px solid #e0e0e0;
             padding: 10px 20px;
+            transition: background-color 0.25s ease, border-color 0.25s ease;
         }
         
         .forecast-period {
@@ -189,12 +361,14 @@
             font-size: 14px;
             color: #333;
             margin-bottom: 4px;
+            transition: color 0.25s ease;
         }
         
         .forecast-period-text {
             font-size: 13px;
             color: #555;
             line-height: 1.4;
+            transition: color 0.25s ease;
         }
         
         /* Daily Forecast Strip */
@@ -204,6 +378,27 @@
             position: relative;
             overflow-x: auto;
             padding: 0 11px;
+            transition: background-color 0.25s ease, border-color 0.25s ease;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain;
+            scrollbar-width: thin;
+        }
+
+        .daily-forecast::-webkit-scrollbar {
+            height: 5px;
+        }
+
+        .daily-forecast::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .daily-forecast::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 4px;
+        }
+
+        body.dark .daily-forecast::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
         }
         
         .daily-forecast-container {
@@ -217,7 +412,7 @@
             border-right: 1px solid #e0e0e0;
             padding: 5px 5px;
             text-align: center;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, border-color 0.25s;
             position: relative;
             cursor: pointer;
             display: flex;
@@ -237,6 +432,7 @@
             font-weight: 600;
             color: #333;
             margin-bottom: 5px;
+            transition: color 0.25s ease;
         }
         
         .day-icon {
@@ -271,6 +467,7 @@
             display: flex;
             align-items: center;
             text-align: left;
+            transition: color 0.25s ease;
         }
         
         /* Charts */
@@ -278,9 +475,14 @@
             padding: 3px;
             background: #fafafa;
             position: relative;
-            overflow-x: auto;
+            overflow-x: hidden; /* Prevent dragging on graphs from scrolling horizontally */
             touch-action: pan-y; 
+            transition: background-color 0.25s ease;
+        }
+
+        #chartsContainer {
             min-width: 700px;
+            position: relative;
         }
         
         .chart-section {
@@ -295,6 +497,7 @@
             border-radius: 6px;
             padding: 20px 10px 5px 0px;
             overflow: hidden;
+            transition: background-color 0.25s ease, border-color 0.25s ease;
         }
         
         .chart-container.temperature-chart {
@@ -322,6 +525,7 @@
             color: #666;
             z-index: 10;
             pointer-events: none;
+            transition: color 0.25s ease;
         }
         
         /* Crosshair tooltip */
@@ -339,7 +543,7 @@
         .crosshair-time {
             position: absolute;
             top: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             color: white;
             padding: 2px 6px;
             border-radius: 3px;
@@ -351,7 +555,7 @@
         
         .chart-value-tooltip {
             position: absolute;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             color: white;
             padding: 3px 6px;
             border-radius: 3px;
@@ -366,17 +570,207 @@
             text-align: center;
             padding: 40px;
             color: #666;
+            transition: color 0.25s ease;
         }
         
         .error {
             text-align: center;
             padding: 40px;
             color: #d32f2f;
+            line-height: 1.5;
         }
 
         canvas {
             max-height: 100%;
             cursor: crosshair;
+        }
+
+        /* In-page Toast Notification */
+        .status-toast {
+            position: fixed;
+            top: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+            font-size: 13px;
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            transition: opacity 0.25s ease;
+            max-width: 90vw;
+        }
+
+        .status-toast.error-toast {
+            background: #b91c1c;
+        }
+
+        .status-toast-close {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 18px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 2px;
+        }
+
+        .status-toast-close:hover {
+            color: #fff;
+        }
+
+        /* Dark Mode styles */
+        body.dark { 
+            background-color: #0b0f19;
+            color: #e2e8f0;
+        }
+
+        body.dark .main-container {
+            background-color: #111827;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+            border: 1px solid #1f293d;
+        }
+
+        body.dark .header {
+            background: linear-gradient(135deg, #1e1b4b 0%, #2e1065 100%);
+        }
+
+        body.dark .current-conditions-wrapper {
+            background: #111827;
+            border-bottom: 1px solid #1f293d;
+        }
+
+        body.dark .current-conditions {
+            background: transparent;
+            border-bottom: none;
+        }
+
+        body.dark .theme-toggle-btn {
+            background: #1e293b;
+            color: #cbd5e1;
+            border: 1px solid #334155;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+        }
+
+        body.dark .theme-toggle-btn:hover {
+            background: #27354d;
+            color: #f8fafc;
+            border-color: #475569;
+        }
+
+        body.dark .current-conditions .loading {
+            color: #94a3b8;
+        }
+
+        body.dark .sun-times-display {
+            color: #94a3b8;
+        }
+
+        body.dark .sun-label {
+            color: #94a3b8;
+        }
+
+        body.dark .sun-time-val {
+            color: #f1f5f9;
+        }
+
+        body.dark .current-temp {
+            border-right: 1px solid #1f293d;
+        }
+
+        body.dark .current-temp-value,
+        body.dark .current-stat-value {
+            color: #f8fafc;
+        }
+
+        body.dark .current-temp-feels,
+        body.dark .current-stat-label {
+            color: #94a3b8;
+        }
+
+        body.dark .detailed-forecast {
+            background: #0f172a;
+            border-bottom: 1px solid #1f293d;
+        }
+
+        body.dark .forecast-period-title {
+            color: #f1f5f9;
+        }
+
+        body.dark .forecast-period-text {
+            color: #cbd5e1;
+        }
+
+        body.dark .daily-forecast {
+            background: #111827;
+            border-bottom: 2px solid #1f293d;
+        }
+
+        body.dark .day-forecast {
+            background: #111827;
+            border-right: 1px solid #1f293d;
+        }
+
+        body.dark .day-forecast:hover, 
+        body.dark .day-forecast.selected {
+            background-color: #1e293b;
+        }
+
+        body.dark .day-name {
+            color: #f1f5f9;
+        }
+
+        body.dark .day-high {
+            color: #f87171;
+        }
+
+        body.dark .day-low {
+            color: #60a5fa;
+        }
+
+        body.dark .day-detail {
+            color: #94a3b8;
+        }
+
+        body.dark .charts-wrapper {
+            background: #0b0f19;
+        }
+
+        body.dark .chart-container {
+            background: #111827;
+            border: 1px solid #1f293d;
+        }
+
+        body.dark .chart-label {
+            color: #94a3b8;
+        }
+
+        body.dark .crosshair-line {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        body.dark .crosshair-time {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid #334155;
+            color: #f8fafc;
+        }
+
+        body.dark .chart-value-tooltip {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid #334155;
+            color: #f8fafc;
+        }
+
+        body.dark .loading {
+            color: #94a3b8;
+        }
+
+        body.dark .error {
+            color: #f87171;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -386,6 +780,12 @@
 
     <div id="root"></div>
 
+    <!-- Toast Notification (Replaces window.alert) -->
+    <div id="statusToast" class="status-toast" role="status" aria-live="polite">
+        <span id="statusToastMessage"></span>
+        <button class="status-toast-close" onclick="hideStatusToast()" aria-label="Close message">&times;</button>
+    </div>
+
     <div class="main-container">
         <div class="header">
             <div class="header-left">
@@ -393,18 +793,39 @@
                 <div class="subtitle" id="locationDetails">Loading...</div>
                 <div class="last-updated" id="lastUpdated">Last updated: --</div>
             </div>
-            <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
+            <div class="header-right">
                 <div class="location-search">
-                    <input type="text" id="locationInput" placeholder="Search location..." />
-                    <button onclick="searchLocation()">Go</button>
+                    <input type="text" id="locationInput" placeholder="ZIP code or city..." aria-label="Search location by ZIP code or city" />
+                    <button id="searchButton" onclick="searchLocation()">Go</button>
                 </div>
-                <button onclick="useMyLocation()" style="background: rgba(255, 255, 255, 0.2); border: none; color: white; padding: 5px 10px; border-radius: 15px; cursor: pointer; font-size: 12px;" title="Use GPS location">⊕ My Location</button>
+                <div class="header-actions">
+                    <!-- Recent location buttons listed to the left of the My Location button -->
+                    <div id="recentLocationsContainer" class="recent-locations"></div>
+                    <button class="header-btn" onclick="useMyLocation()" title="Use GPS location">⊕ My Location</button>
+                </div>
             </div>
         </div>
         
-        <!-- Current Conditions -->
-        <div class="current-conditions" id="currentConditions">
-            <div class="loading">Loading current conditions...</div>
+        <!-- Current Conditions (With Dark/Light Toggle and Sunrise/Sunset Column in Top-Right) -->
+        <div class="current-conditions-wrapper">
+            <div class="current-conditions-right-column">
+                <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+                    🌙 Dark
+                </button>
+                <div class="sun-times-display" id="sunTimesDisplay" title="Today's Sunrise & Sunset">
+                    <div class="sun-time-row">
+                        <span class="sun-label">Sunrise</span>
+                        <span class="sun-time-val" id="sunriseTime">--:--</span>
+                    </div>
+                    <div class="sun-time-row">
+                        <span class="sun-label">Sunset</span>
+                        <span class="sun-time-val" id="sunsetTime">--:--</span>
+                    </div>
+                </div>
+            </div>
+            <div class="current-conditions" id="currentConditions">
+                <div class="loading">Loading current conditions...</div>
+            </div>
         </div>
         
         <!-- Detailed Forecast Details -->
@@ -413,14 +834,14 @@
         </div>
         
         <!-- Daily Forecast Strip -->
-        <div class="daily-forecast">
+        <div class="daily-forecast" id="dailyForecastStrip">
             <div class="daily-forecast-container" id="dailyForecast">
                 <!-- Daily forecasts will be inserted here -->
             </div>
         </div>
         
         <!-- Charts -->
-        <div class="charts-wrapper">
+        <div class="charts-wrapper" id="chartsWrapper">
             <div class="loading" id="loading">Loading forecast data...</div>
             <div id="chartsContainer" style="display: none;">
                 <!-- Crosshair line that spans all charts -->
@@ -475,11 +896,25 @@
         let currentLat = 38.9014;
         let currentLon = -77.2652;
         let currentLocationName = "Vienna, Virginia";
+        let currentTimeZone = "America/New_York";
         let currentElevation = null;
         let globalHourlyData = null;
         let globalDayBoundaries = [];
         let globalDailyPeriods = [];
         let selectedDayIndex = null;
+        let toastTimeout = null;
+        
+        // Solar & UV Index state
+        let globalCurrentUvIndex = null;
+        let globalDailySolarMap = {}; // dateKey -> { sunriseHour, sunsetHour, sunriseIso, sunsetIso }
+        
+        // Dark mode & Recent locations state
+        let isDarkMode = false;
+        let recentLocations = [
+            { name: "Vienna, Virginia", lat: 38.9014, lon: -77.2652 },
+            { name: "New York City, New York", lat: 40.7128, lon: -74.0060 },
+            { name: "San Francisco, California", lat: 37.7749, lon: -122.4194 }
+        ];
         
         // Chart configuration defaults
         Chart.defaults.font.size = 10;
@@ -487,22 +922,288 @@
         
         // Register annotation plugin
         Chart.register(window['chartjs-plugin-annotation']);
+
+        // Theme management
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            applyTheme();
+            updateURL();
+            if (globalHourlyData) {
+                createCharts(globalHourlyData);
+            }
+        }
+
+        function applyTheme() {
+            const btn = document.getElementById('themeToggleBtn');
+            if (isDarkMode) {
+                document.body.classList.add('dark');
+                if (btn) {
+                    btn.innerHTML = '☀️ Light';
+                    btn.title = 'Switch to Light Mode';
+                }
+            } else {
+                document.body.classList.remove('dark');
+                if (btn) {
+                    btn.innerHTML = '🌙 Dark';
+                    btn.title = 'Switch to Dark Mode';
+                }
+            }
+            try {
+                localStorage.setItem('weather_theme', isDarkMode ? 'dark' : 'light');
+            } catch (e) {}
+        }
+
+        // Recent locations management
+        function serializeRecentLocations(list) {
+            if (!list || !list.length) return '';
+            return list.slice(0, 4).map(item => {
+                const safeName = item.name.replace(/[:|]/g, '-');
+                return `${safeName}:${item.lat.toFixed(4)},${item.lon.toFixed(4)}`;
+            }).join('|');
+        }
+
+        function parseRecentLocations(str) {
+            if (!str) return [];
+            try {
+                return str.split('|').map(entry => {
+                    const colonIdx = entry.lastIndexOf(':');
+                    if (colonIdx === -1) return null;
+                    const name = entry.slice(0, colonIdx).trim();
+                    const [latStr, lonStr] = entry.slice(colonIdx + 1).split(',');
+                    const lat = parseFloat(latStr);
+                    const lon = parseFloat(lonStr);
+                    if (!isNaN(lat) && !isNaN(lon) && name) {
+                        return { name, lat, lon };
+                    }
+                    return null;
+                }).filter(Boolean).slice(0, 4);
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function addRecentLocation(name, lat, lon) {
+            if (!name || isNaN(lat) || isNaN(lon)) return;
+            recentLocations = recentLocations.filter(loc => 
+                (Math.abs(loc.lat - lat) > 0.03 || Math.abs(loc.lon - lon) > 0.03) &&
+                loc.name.toLowerCase() !== name.toLowerCase()
+            );
+            recentLocations.unshift({ name, lat, lon });
+            if (recentLocations.length > 5) {
+                recentLocations = recentLocations.slice(0, 5);
+            }
+            try {
+                localStorage.setItem('weather_recent_v2', JSON.stringify(recentLocations));
+            } catch (e) {}
+            renderRecentLocations();
+        }
+
+        function renderRecentLocations() {
+            const container = document.getElementById('recentLocationsContainer');
+            if (!container) return;
+
+            // Show up to 4 recent locations, omitting the currently viewed location
+            const filtered = recentLocations.filter(loc => 
+                Math.abs(loc.lat - currentLat) > 0.03 || Math.abs(loc.lon - currentLon) > 0.03
+            ).slice(0, 4);
+
+            if (filtered.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = filtered.map((loc) => {
+                const cityName = loc.name.split(',')[0].trim();
+                const shortLabel = cityName.length > 13 ? cityName.slice(0, 12) + '…' : cityName;
+                const escapedName = loc.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                return `
+                    <button class="header-btn recent-btn" 
+                            onclick="selectRecentLocation('${escapedName}', ${loc.lat}, ${loc.lon})" 
+                            title="${loc.name}">
+                        ${shortLabel}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function selectRecentLocation(name, lat, lon) {
+            addRecentLocation(currentLocationName, currentLat, currentLon);
+
+            currentLat = lat;
+            currentLon = lon;
+            currentLocationName = name;
+            document.getElementById('locationName').textContent = currentLocationName;
+
+            updateURL();
+            currentElevation = null;
+
+            Object.values(charts).forEach(chart => {
+                if (chart) chart.destroy();
+            });
+            charts = {};
+
+            renderRecentLocations();
+            initializeForecast();
+        }
+
+        function showStatusToast(message, isError = false) {
+            const toast = document.getElementById('statusToast');
+            const msg = document.getElementById('statusToastMessage');
+            if (!toast || !msg) return;
+            
+            msg.textContent = message;
+            if (isError) {
+                toast.classList.add('error-toast');
+            } else {
+                toast.classList.remove('error-toast');
+            }
+            
+            toast.style.display = 'flex';
+            toast.style.opacity = '1';
+            
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                hideStatusToast();
+            }, 4500);
+        }
+
+        function hideStatusToast() {
+            const toast = document.getElementById('statusToast');
+            if (toast) {
+                toast.style.opacity = '0';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                }, 250);
+            }
+        }
+
+        function formatNominatimName(loc) {
+            if (loc.address) {
+                const addr = loc.address;
+                const city = addr.city || addr.town || addr.village || addr.hamlet || addr.municipality || addr.suburb || addr.neighbourhood || addr.county || '';
+                const state = addr['ISO3166-2-lvl4'] ? addr['ISO3166-2-lvl4'].replace('US-', '') : (addr.state || '');
+                if (city && state) {
+                    return `${city}, ${state}`;
+                }
+                if (city) return city;
+                if (state) return state;
+            }
+            if (loc.display_name) {
+                const parts = loc.display_name.split(',').map(s => s.trim());
+                if (/^\d{5}/.test(parts[0]) && parts.length > 2) {
+                    return `${parts[1]}, ${parts[2]}`;
+                }
+                return parts.slice(0, 2).join(', ');
+            }
+            return `${parseFloat(loc.lat).toFixed(4)}°, ${parseFloat(loc.lon).toFixed(4)}°`;
+        }
         
         async function searchLocation() {
             const input = document.getElementById('locationInput').value.trim();
             if (!input) return;
+
+            const searchBtn = document.getElementById('searchButton');
+            if (searchBtn) {
+                searchBtn.disabled = true;
+                searchBtn.textContent = '...';
+            }
             
             try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&limit=1`);
-                const data = await response.json();
+                let resolvedLat = null;
+                let resolvedLon = null;
+                let resolvedName = null;
+
+                // 1. Check if the input is a 5-digit US ZIP code
+                const zipMatch = input.match(/^\s*(\d{5})(?:-\d{4})?\s*$/);
+                if (zipMatch) {
+                    const zipCode = zipMatch[1];
+
+                    // Query Zippopotam
+                    try {
+                        const zipRes = await fetch(`https://api.zippopotam.us/us/${zipCode}`);
+                        if (zipRes.ok) {
+                            const zipData = await zipRes.json();
+                            if (zipData.places && zipData.places.length > 0) {
+                                const place = zipData.places[0];
+                                resolvedLat = parseFloat(place.latitude);
+                                resolvedLon = parseFloat(place.longitude);
+                                resolvedName = `${place['place name']}, ${place['state abbreviation'] || place['state']}`;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Zippopotam lookup error, falling back:', e);
+                    }
+
+                    // Fallback via Nominatim postalcode
+                    if (resolvedLat === null || resolvedLon === null) {
+                        try {
+                            const nomZipRes = await fetch(
+                                `https://nominatim.openstreetmap.org/search?format=json&postalcode=${zipCode}&countrycodes=us,pr,vi,gu,mp,as&addressdetails=1&limit=1`,
+                                { headers: { 'Accept': 'application/json' } }
+                            );
+                            if (nomZipRes.ok) {
+                                const nomZipData = await nomZipRes.json();
+                                if (nomZipData && nomZipData.length > 0) {
+                                    resolvedLat = parseFloat(nomZipData[0].lat);
+                                    resolvedLon = parseFloat(nomZipData[0].lon);
+                                    resolvedName = formatNominatimName(nomZipData[0]);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Nominatim postalcode fallback error:', e);
+                        }
+                    }
+                }
+
+                // 2. City / place search restricted to US & territories first
+                if (resolvedLat === null || resolvedLon === null) {
+                    try {
+                        const usSearchRes = await fetch(
+                            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&countrycodes=us,pr,vi,gu,mp,as&addressdetails=1&limit=1`,
+                            { headers: { 'Accept': 'application/json' } }
+                        );
+                        if (usSearchRes.ok) {
+                            const usData = await usSearchRes.json();
+                            if (usData && usData.length > 0) {
+                                resolvedLat = parseFloat(usData[0].lat);
+                                resolvedLon = parseFloat(usData[0].lon);
+                                resolvedName = formatNominatimName(usData[0]);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('US restricted search error:', e);
+                    }
+                }
+
+                // 3. General fallback if not found in US bounds
+                if (resolvedLat === null || resolvedLon === null) {
+                    try {
+                        const genSearchRes = await fetch(
+                            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&addressdetails=1&limit=1`,
+                            { headers: { 'Accept': 'application/json' } }
+                        );
+                        if (genSearchRes.ok) {
+                            const genData = await genSearchRes.json();
+                            if (genData && genData.length > 0) {
+                                resolvedLat = parseFloat(genData[0].lat);
+                                resolvedLon = parseFloat(genData[0].lon);
+                                resolvedName = formatNominatimName(genData[0]);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('General search error:', e);
+                    }
+                }
                 
-                if (data && data.length > 0) {
-                    const location = data[0];
-                    currentLat = parseFloat(location.lat);
-                    currentLon = parseFloat(location.lon);
-                    currentLocationName = location.display_name.split(',').slice(0, 2).join(', ');
+                if (resolvedLat !== null && resolvedLon !== null) {
+                    addRecentLocation(currentLocationName, currentLat, currentLon);
+
+                    currentLat = resolvedLat;
+                    currentLon = resolvedLon;
+                    currentLocationName = resolvedName || `${resolvedLat.toFixed(4)}°, ${resolvedLon.toFixed(4)}°`;
                     document.getElementById('locationName').textContent = currentLocationName;
                     
+                    renderRecentLocations();
                     updateURL(currentLat, currentLon, currentLocationName);
                     currentElevation = null;
                     
@@ -514,11 +1215,16 @@
                     document.getElementById('locationInput').value = '';
                     initializeForecast();
                 } else {
-                    alert('Location not found. Please try another search.');
+                    showStatusToast('Location not found. Please enter a valid 5-digit US ZIP code or city.', true);
                 }
             } catch (error) {
                 console.error('Geocoding error:', error);
-                alert('Error searching for location. Please try again.');
+                showStatusToast('Error searching for location. Please try again.', true);
+            } finally {
+                if (searchBtn) {
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Go';
+                }
             }
         }
         
@@ -621,35 +1327,203 @@
             const rotation = degrees;
             return '<span class="wind-arrow" style="transform: rotate(' + rotation + 'deg);">↓</span>';
         }
-        
-        function getSunTimes(date, lat, lon) {
-            const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
-            const P = Math.asin(0.39795 * Math.cos(0.98563 * (dayOfYear - 173) * Math.PI / 180));
-            const sunrise = -Math.tan(lat * Math.PI / 180) * Math.tan(P);
+
+        function getUvBadge(uv) {
+            if (uv === null || uv === undefined || isNaN(uv)) {
+                return '--';
+            }
+            const rounded = Math.round(uv);
+            let category = 'Low';
+            if (rounded >= 11) category = 'Extreme';
+            else if (rounded >= 8) category = 'Very High';
+            else if (rounded >= 6) category = 'High';
+            else if (rounded >= 3) category = 'Moderate';
             
-            if (sunrise < -1) return { sunrise: 0, sunset: 24 };
-            else if (sunrise > 1) return { sunrise: 12, sunset: 12 };
-            
-            const hourAngle = Math.acos(sunrise) * 180 / Math.PI;
-            const sunriseTime = 12 - hourAngle / 15 - lon / 15 - date.getTimezoneOffset() / 60;
-            const sunsetTime = 12 + hourAngle / 15 - lon / 15 - date.getTimezoneOffset() / 60;
-            
-            const B = 2 * Math.PI * (dayOfYear - 81) / 365;
-            const E = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
-            
-            return {
-                sunrise: sunriseTime - E / 60,
-                sunset: sunsetTime - E / 60
-            };
+            return `${rounded} <span style="font-size: 10px; font-weight: normal; opacity: 0.85; margin-left: 2px;">${category}</span>`;
+        }
+
+        // Solar & Local time calculations
+        function getLocalHourAndDateKey(date, timeZone) {
+            try {
+                const parts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: timeZone || undefined,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: 'numeric',
+                    hourCycle: 'h23'
+                }).formatToParts(date);
+                let year, month, day, hour;
+                parts.forEach(p => {
+                    if (p.type === 'year') year = p.value;
+                    if (p.type === 'month') month = p.value;
+                    if (p.type === 'day') day = p.value;
+                    if (p.type === 'hour') hour = parseInt(p.value, 10);
+                });
+                return {
+                    dateKey: `${year}-${month}-${day}`,
+                    hour: hour
+                };
+            } catch (e) {
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return {
+                    dateKey: `${y}-${m}-${d}`,
+                    hour: date.getHours()
+                };
+            }
+        }
+
+        function getLocalHourAndMin(date, timeZone) {
+            try {
+                const parts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: timeZone || undefined,
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    hourCycle: 'h23'
+                }).formatToParts(date);
+                let hour = date.getHours();
+                let minute = date.getMinutes();
+                parts.forEach(p => {
+                    if (p.type === 'hour') hour = parseInt(p.value, 10);
+                    if (p.type === 'minute') minute = parseInt(p.value, 10);
+                });
+                return { hour, minute };
+            } catch (e) {
+                return { hour: date.getHours(), minute: date.getMinutes() };
+            }
+        }
+
+        function getDailySolarHours(dateKey, lat, lon) {
+            if (globalDailySolarMap && globalDailySolarMap[dateKey]) {
+                return globalDailySolarMap[dateKey];
+            }
+            // Standard NOAA Solar Calculation fallback
+            try {
+                const parts = dateKey.split('-').map(Number);
+                const date = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+                const rad = Math.PI / 180;
+                const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+                const decl = 23.45 * Math.sin(rad * (360 / 365) * (dayOfYear - 81));
+                const cosHA = -Math.tan(rad * lat) * Math.tan(rad * decl);
+                let ha = 90;
+                if (cosHA < -1) ha = 180;
+                else if (cosHA > 1) ha = 0;
+                else ha = Math.acos(cosHA) * (180 / Math.PI);
+                
+                return {
+                    sunriseHour: Math.round(12 - ha / 15),
+                    sunsetHour: Math.round(12 + ha / 15)
+                };
+            } catch (e) {
+                return { sunriseHour: 7, sunsetHour: 17 };
+            }
+        }
+
+        function updateSunTimesDisplay(sunriseIso, sunsetIso, timeZone) {
+            const riseElem = document.getElementById('sunriseTime');
+            const setElem = document.getElementById('sunsetTime');
+            if (!riseElem || !setElem) return;
+
+            if (sunriseIso && sunsetIso) {
+                try {
+                    const sDate = new Date(sunriseIso);
+                    const eDate = new Date(sunsetIso);
+                    const options = { hour: 'numeric', minute: '2-digit', hour12: true };
+                    if (timeZone) options.timeZone = timeZone;
+
+                    riseElem.textContent = sDate.toLocaleTimeString('en-US', options);
+                    setElem.textContent = eDate.toLocaleTimeString('en-US', options);
+                } catch (e) {
+                    riseElem.textContent = '--:--';
+                    setElem.textContent = '--:--';
+                }
+            } else {
+                riseElem.textContent = '--:--';
+                setElem.textContent = '--:--';
+            }
         }
         
         async function getForecastData() {
             try {
-                const gridResponse = await fetch(`https://api.weather.gov/points/${currentLat},${currentLon}`);
-                if (!gridResponse.ok) throw new Error(`Grid API Error: ${gridResponse.status}`);
+                // Fetch NWS point data and Open-Meteo solar/UV data concurrently
+                const [gridResponse, solarResponse] = await Promise.all([
+                    fetch(`https://api.weather.gov/points/${currentLat.toFixed(4)},${currentLon.toFixed(4)}`, {
+                        headers: { 'User-Agent': 'WeatherApp (NWS Forecast Viewer)' }
+                    }),
+                    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentLat.toFixed(4)}&longitude=${currentLon.toFixed(4)}&current=uv_index&daily=sunrise,sunset&timezone=auto`)
+                        .then(r => r.ok ? r.json() : null)
+                        .catch(err => {
+                            console.warn('Open-Meteo solar/UV fetch error:', err);
+                            return null;
+                        })
+                ]);
+
+                if (!gridResponse.ok) {
+                    if (gridResponse.status === 404) {
+                        throw new Error('This location is outside the National Weather Service forecast coverage (US & territories only).');
+                    }
+                    throw new Error(`National Weather Service error (${gridResponse.status})`);
+                }
                 const gridData = await gridResponse.json();
                 
-                const gridForecastResponse = await fetch(gridData.properties.forecastGridData);
+                if (gridData.properties && gridData.properties.timeZone) {
+                    currentTimeZone = gridData.properties.timeZone;
+                }
+
+                // Process UV index & daily sunrise/sunset from Open-Meteo
+                globalDailySolarMap = {};
+                globalCurrentUvIndex = null;
+                let todaySunriseIso = null;
+                let todaySunsetIso = null;
+
+                if (solarResponse) {
+                    if (solarResponse.current && solarResponse.current.uv_index !== undefined) {
+                        globalCurrentUvIndex = solarResponse.current.uv_index;
+                    }
+                    if (solarResponse.timezone) {
+                        currentTimeZone = solarResponse.timezone;
+                    }
+                    if (solarResponse.daily && solarResponse.daily.time) {
+                        const times = solarResponse.daily.time;
+                        const sunrises = solarResponse.daily.sunrise;
+                        const sunsets = solarResponse.daily.sunset;
+                        
+                        times.forEach((dayStr, i) => {
+                            const sStr = sunrises[i];
+                            const eStr = sunsets[i];
+                            if (sStr && eStr) {
+                                const sDate = new Date(sStr);
+                                const eDate = new Date(eStr);
+                                const sTime = getLocalHourAndMin(sDate, currentTimeZone);
+                                const eTime = getLocalHourAndMin(eDate, currentTimeZone);
+                                
+                                globalDailySolarMap[dayStr] = {
+                                    sunriseHour: Math.round(sTime.hour + sTime.minute / 60),
+                                    sunsetHour: Math.round(eTime.hour + eTime.minute / 60),
+                                    sunriseIso: sStr,
+                                    sunsetIso: eStr
+                                };
+                            }
+                        });
+
+                        if (sunrises && sunrises.length > 0) todaySunriseIso = sunrises[0];
+                        if (sunsets && sunsets.length > 0) todaySunsetIso = sunsets[0];
+                    }
+                }
+
+                // NWS astronomical fallback if Open-Meteo is unavailable
+                if (!todaySunriseIso && gridData.properties && gridData.properties.astronomicalData) {
+                    todaySunriseIso = gridData.properties.astronomicalData.sunrise;
+                    todaySunsetIso = gridData.properties.astronomicalData.sunset;
+                }
+
+                updateSunTimesDisplay(todaySunriseIso, todaySunsetIso, currentTimeZone);
+                
+                const gridForecastResponse = await fetch(gridData.properties.forecastGridData, {
+                    headers: { 'User-Agent': 'WeatherApp (NWS Forecast Viewer)' }
+                });
                 if (!gridForecastResponse.ok) throw new Error(`Grid Forecast Error: ${gridForecastResponse.status}`);
                 const gridForecastData = await gridForecastResponse.json();
                 
@@ -658,7 +1532,9 @@
                     currentElevation = gridForecastData.properties.elevation.value;
                 }
                 
-                const dailyResponse = await fetch(gridData.properties.forecast);
+                const dailyResponse = await fetch(gridData.properties.forecast, {
+                    headers: { 'User-Agent': 'WeatherApp (NWS Forecast Viewer)' }
+                });
                 if (!dailyResponse.ok) throw new Error(`Daily Forecast Error: ${dailyResponse.status}`);
                 const dailyData = await dailyResponse.json();
                 
@@ -668,7 +1544,7 @@
                 };
             } catch (error) {
                 console.error("Error fetching forecast data:", error);
-                document.getElementById('loading').innerHTML = `<div class="error">Error loading forecast: ${error.message}</div>`;
+                document.getElementById('loading').innerHTML = `<div class="error"><strong>Unable to load forecast</strong><br>${error.message}</div>`;
                 throw error;
             }
         }
@@ -810,6 +1686,12 @@
                             <div class="current-stat-label">Dew Point</div>
                         </div>
                     ` : ''}
+                    <div class="current-stat">
+                        <div class="current-stat-value">
+                            ${getUvBadge(globalCurrentUvIndex)}
+                        </div>
+                        <div class="current-stat-label">UV Index</div>
+                    </div>
                 </div>
             `;
             
@@ -996,6 +1878,13 @@
                         dailyContainer.style.width = `${lastRight}px`;
                     }
                 }
+
+                // Keep scroll position in sync with charts
+                const dailyForecastEl = document.getElementById('dailyForecastStrip');
+                const chartsWrapperEl = document.getElementById('chartsWrapper');
+                if (dailyForecastEl && chartsWrapperEl) {
+                    chartsWrapperEl.scrollLeft = dailyForecastEl.scrollLeft;
+                }
             });
         }
         
@@ -1145,13 +2034,11 @@
             let nightStart = null;
             
             hourlyData.forEach((hour, index) => {
-                const date = hour.time;
-                const hourNum = date.getHours();
-                const sunTimes = getSunTimes(date, currentLat, currentLon);
+                const { dateKey, hour: localHour } = getLocalHourAndDateKey(hour.time, currentTimeZone);
+                const solar = getDailySolarHours(dateKey, currentLat, currentLon);
                 
-                const sunriseHour = Math.round(sunTimes.sunrise);
-                const sunsetHour = Math.round(sunTimes.sunset);
-                const isNight = hourNum < sunriseHour || hourNum >= sunsetHour;
+                // Night is when local hour is before rounded sunrise or at/after rounded sunset
+                const isNight = localHour < solar.sunriseHour || localHour >= solar.sunsetHour;
                 
                 if (isNight && !inNight) {
                     nightStart = index;
@@ -1162,7 +2049,7 @@
                             type: 'box',
                             xMin: nightStart - 0.5,
                             xMax: index - 0.5,
-                            backgroundColor: 'rgba(20, 20, 50, 0.04)',
+                            backgroundColor: isDarkMode ? 'rgba(0, 0, 20, 0.35)' : 'rgba(20, 20, 50, 0.04)',
                             borderWidth: 0
                         });
                     }
@@ -1176,7 +2063,7 @@
                     type: 'box',
                     xMin: nightStart - 0.5,
                     xMax: hourlyData.length - 0.5,
-                    backgroundColor: 'rgba(20, 20, 50, 0.04)',
+                    backgroundColor: isDarkMode ? 'rgba(0, 0, 20, 0.35)' : 'rgba(20, 20, 50, 0.04)',
                     borderWidth: 0
                 });
             }
@@ -1190,6 +2077,7 @@
        
         function setupCrosshair() {
             const chartsContainer = document.getElementById('chartsContainer');
+            if (!chartsContainer) return;
             const canvases = chartsContainer.querySelectorAll('.chart-container');
             
             canvases.forEach(canvas => {
@@ -1200,6 +2088,19 @@
                 canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
                 canvas.addEventListener('touchend', handleTouchEnd);
             });
+
+            setupForecastScrollSync();
+        }
+
+        // Keep horizontal scroll of graphs synchronized with the daily forecast strip
+        function setupForecastScrollSync() {
+            const dailyForecastEl = document.getElementById('dailyForecastStrip');
+            const chartsWrapperEl = document.getElementById('chartsWrapper');
+            if (!dailyForecastEl || !chartsWrapperEl) return;
+
+            dailyForecastEl.onscroll = () => {
+                chartsWrapperEl.scrollLeft = dailyForecastEl.scrollLeft;
+            };
         }
         
         function handlePointerMove(e) {
@@ -1210,17 +2111,18 @@
             const chart = charts[chartId];
             if (!chart) return;
             
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const canvasRect = canvas.getBoundingClientRect();
+            const chartsContainer = document.getElementById('chartsContainer');
+            const containerRect = chartsContainer.getBoundingClientRect();
             
-            const canvasPosition = { x: x, y: y };
+            const xInCanvas = e.clientX - canvasRect.left;
+            const xInContainer = e.clientX - containerRect.left;
 
-            const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+            const dataX = chart.scales.x.getValueForPixel(xInCanvas);
             const index = Math.round(dataX);
             
             if (index >= 0 && index < chart.data.labels.length && globalHourlyData && globalHourlyData[index]) {
-                updateCrosshair(index, canvasPosition.x);
+                updateCrosshair(index, xInContainer);
             }
         }
         
@@ -1237,32 +2139,35 @@
             const deltaX = Math.abs(touch.clientX - touchStartX);
             const deltaY = Math.abs(touch.clientY - touchStartY);
             
-            if (isHorizontalSwipe === null && (deltaX > 10 || deltaY > 10)) {
+            if (isHorizontalSwipe === null && (deltaX > 6 || deltaY > 6)) {
                 isHorizontalSwipe = deltaX > deltaY; 
             }
             
             if (isHorizontalSwipe === false) {
-                return;
+                return; // Allow page vertical scroll
             }
             
             if (isHorizontalSwipe === true) {
+                e.preventDefault(); // Prevent page/chart native scroll while dragging stats cursor
                 const canvas = e.currentTarget.querySelector('canvas');
                 if (!canvas) return;
                 
-                const rect = canvas.getBoundingClientRect();
-                const x = touch.clientX - rect.left;
-                
                 const chartId = canvas.id;
                 const chart = charts[chartId];
-                
                 if (!chart) return;
                 
-                const canvasPosition = { x: x, y: touch.clientY - rect.top };
-                const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+                const canvasRect = canvas.getBoundingClientRect();
+                const chartsContainer = document.getElementById('chartsContainer');
+                const containerRect = chartsContainer.getBoundingClientRect();
+                
+                const xInCanvas = touch.clientX - canvasRect.left;
+                const xInContainer = touch.clientX - containerRect.left;
+                
+                const dataX = chart.scales.x.getValueForPixel(xInCanvas);
                 const index = Math.round(dataX);
                 
                 if (index >= 0 && index < chart.data.labels.length && globalHourlyData && globalHourlyData[index]) {
-                    updateCrosshair(index, canvasPosition.x);
+                    updateCrosshair(index, xInContainer);
                 }
             }
         }
@@ -1278,7 +2183,7 @@
             const crosshairLine = document.getElementById('crosshairLine');
             const crosshairTime = document.getElementById('crosshairTime');
             
-            crosshairLine.style.left = `${mouseX + 3}px`;
+            crosshairLine.style.left = `${mouseX}px`;
             crosshairLine.style.display = 'block';
             
             if (globalHourlyData && globalHourlyData[index]) {
@@ -1286,9 +2191,9 @@
                 const now = new Date();
                 const isHistorical = date < now;
                 
-                const dayStr = date.toLocaleDateString('en-US', { weekday: 'short' });
-                const hour = date.getHours();
-                const timeStr = hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`;
+                const { hour: localHour } = getLocalHourAndDateKey(date, currentTimeZone);
+                const dayStr = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: currentTimeZone });
+                const timeStr = localHour === 0 ? '12 AM' : localHour === 12 ? '12 PM' : localHour > 12 ? `${localHour - 12} PM` : `${localHour} AM`;
                 
                 crosshairTime.innerHTML = `${isHistorical ? '(Past)' : dayStr}<br>${timeStr}`;
                 crosshairTime.style.display = 'block';
@@ -1303,8 +2208,9 @@
         function updateTooltipForChart(chartId, tooltipId, index, mouseX) {
             const chart = charts[chartId];
             const tooltip = document.getElementById(tooltipId);
+            const chartsContainer = document.getElementById('chartsContainer');
             
-            if (!chart || !tooltip) return;
+            if (!chart || !tooltip || !chartsContainer) return;
             
             const datasets = chart.data.datasets;
             
@@ -1326,7 +2232,14 @@
             
             if (values.length > 0) {
                 tooltip.innerHTML = values.join('<br>');
-                tooltip.style.left = `${mouseX + 15}px`;
+                
+                // Flip tooltip to left of crosshair if near right boundary of container
+                const containerWidth = chartsContainer.offsetWidth;
+                if (mouseX > containerWidth - 145) {
+                    tooltip.style.left = `${mouseX - 130}px`;
+                } else {
+                    tooltip.style.left = `${mouseX + 15}px`;
+                }
                 
                 const yPos = chart.scales.y.getPixelForValue(datasets[0].data[index]);
                 tooltip.style.top = `${yPos - 10}px`;
@@ -1343,7 +2256,8 @@
         }
         
         function hideCrosshair() {
-            document.getElementById('crosshairLine').style.display = 'none';
+            const crosshair = document.getElementById('crosshairLine');
+            if (crosshair) crosshair.style.display = 'none';
             document.querySelectorAll('.chart-value-tooltip').forEach(tooltip => {
                 tooltip.style.display = 'none';
             });
@@ -1365,6 +2279,12 @@
  
         function createCharts(hourlyData) {
             globalHourlyData = hourlyData;
+
+            // Destroy previous charts before re-rendering (e.g. on theme toggle)
+            Object.values(charts).forEach(chart => {
+                if (chart) chart.destroy();
+            });
+            charts = {};
             
             const now = new Date();
             let nowIndex = -1;
@@ -1380,15 +2300,15 @@
                 type: 'line',
                 xMin: nowIndex - 0.5,
                 xMax: nowIndex - 0.5,
-                borderColor: 'rgba(0, 0, 0, .8)',
+                borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, .8)',
                 borderWidth: 1,
                 label: {
                     content: 'Now',
                     enabled: true,
                     position: 'start',
                     font: { size: 9 },
-                    backgroundColor: 'rgba(255, 0, 0, 0.1)',
-                    color: 'rgba(255, 0, 0, 0.8)'
+                    backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255, 0, 0, 0.1)',
+                    color: isDarkMode ? '#fca5a5' : 'rgba(255, 0, 0, 0.8)'
                 }
             }] : [];
             
@@ -1396,13 +2316,16 @@
                 type: 'line',
                 xMin: boundary - 0.5,
                 xMax: boundary - 0.5,
-                borderColor: 'rgba(0, 0, 0, 0.15)',
+                borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.15)',
                 borderWidth: 1,
                 borderDash: [4, 2]
             }));
             
             const allAnnotations = [...nightAnnotations, ...dayLineAnnotations, ...nowLineAnnotation];            
             const labels = hourlyData.map(() => '');
+
+            const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+            const tickColor = isDarkMode ? '#94a3b8' : '#666';
             
             const commonOptions = {
                 responsive: true,
@@ -1453,10 +2376,10 @@
                         pointRadius: 0,
                         segment: {
                             borderColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('ef4444',0.5) : hexToRgba('ef4444',1);
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba('ef4444', 0.5) : hexToRgba('ef4444', 1);
                             },
                             backgroundColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('ef4444',0.05) : hexToRgba('ef4444',0.1);
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba('ef4444', 0.05) : hexToRgba('ef4444', isDarkMode ? 0.15 : 0.1);
                             }
                         }
                     }, {
@@ -1469,19 +2392,20 @@
                         pointRadius: 0,
                         segment: {
                             borderColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('AC54A0',0.5) : hexToRgba('AC54A0',1);
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba('AC54A0', 0.5) : hexToRgba('AC54A0', 1);
                             }
                         }
                     }, {
                         label: 'Dewpoint',
                         data: hourlyData.map(h => h.dewpoint),
-                        borderColor: '#059669',
+                        borderColor: isDarkMode ? '#10b981' : '#059669',
                         fill: false,
                         tension: 0.4,
                         pointRadius: 0,
                         segment: {
                             borderColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('059669',0.5) : hexToRgba('059669',1);
+                                const c = isDarkMode ? '10b981' : '059669';
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba(c, 0.5) : hexToRgba(c, 1);
                             }
                         }
                     }]
@@ -1492,8 +2416,9 @@
                         ...commonOptions.scales,
                         y: {
                             ...commonOptions.scales.y,
-                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            grid: { color: gridColor },
                             ticks: {
+                                color: tickColor,
                                 callback: value => value + '°',
                                 font: { size: 9 }
                             }
@@ -1510,28 +2435,31 @@
                     datasets: [{
                         label: 'Humidity',
                         data: hourlyData.map(h => h.humidity),
-                        borderColor: '#90D104',
+                        borderColor: isDarkMode ? '#a3e635' : '#90D104',
                         fill: false,
                         tension: 0.4,
                         pointRadius: 0,
                         segment: {
                             borderColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('90D104',0.5) : hexToRgba('90D104',1);
+                                const c = isDarkMode ? 'a3e635' : '90D104';
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba(c, 0.5) : hexToRgba(c, 1);
                             }
                         }
                     }, {
                         label: 'Clouds',
                         data: hourlyData.map(h => h.cloudCover),
-                        borderColor: '#6b7280',
+                        borderColor: isDarkMode ? '#94a3b8' : '#6b7280',
                         fill: true,
                         tension: 0.4,
                         pointRadius: 0,
                         segment: {
                             borderColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('6b7280',0.5) : hexToRgba('6b7280',1);
+                                const c = isDarkMode ? '94a3b8' : '6b7280';
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba(c, 0.5) : hexToRgba(c, 1);
                             },
                             backgroundColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('6b7280',0.05) : hexToRgba('6b7280',0.2);
+                                const c = isDarkMode ? '94a3b8' : '6b7280';
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba(c, 0.05) : hexToRgba(c, isDarkMode ? 0.25 : 0.2);
                             }
                         }
                     }, {
@@ -1543,10 +2471,10 @@
                         pointRadius: 0,
                         segment: {
                             borderColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('3b82f6',0.5) : hexToRgba('3b82f6',1);
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba('3b82f6', 0.5) : hexToRgba('3b82f6', 1);
                             },
                             backgroundColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('3b82f6',0.05) : hexToRgba('3b82f6',0.2);
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba('3b82f6', 0.05) : hexToRgba('3b82f6', isDarkMode ? 0.28 : 0.2);
                             }
                         }
                     }]
@@ -1557,8 +2485,9 @@
                         ...commonOptions.scales,
                         y: {
                             ...commonOptions.scales.y,
-                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            grid: { color: gridColor },
                             ticks: {
+                                color: tickColor,
                                 callback: value => value + '%',
                                 font: { size: 9 }
                             },
@@ -1577,7 +2506,7 @@
                     datasets: [{
                         label: 'Precip Amount',
                         data: hourlyData.map(h => h.precipAmount),
-                        backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                        backgroundColor: isDarkMode ? 'rgba(96, 165, 250, 0.65)' : 'rgba(59, 130, 246, 0.6)',
                         borderColor: '#3b82f6',
                         borderWidth: 1
                     }]
@@ -1588,8 +2517,9 @@
                         ...commonOptions.scales,
                         y: {
                             ...commonOptions.scales.y,
-                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            grid: { color: gridColor },
                             ticks: {
+                                color: tickColor,
                                 callback: value => value.toFixed(2) + '"',
                                 font: { size: 9 }
                             },
@@ -1624,23 +2554,25 @@
                         spanGaps: true,
                         segment: {
                             borderColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('D65011',0.5) : hexToRgba('D65011',1);
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba('D65011', 0.5) : hexToRgba('D65011', 1);
                             }
                         }
                     }, {
                         label: 'Speed',
                         data: windSpeeds,
-                        borderColor: '#B58635',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderColor: isDarkMode ? '#f59e0b' : '#B58635',
+                        backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.1)',
                         fill: true,
                         tension: 0.4,
                         pointRadius: 0,
                         segment: {
                             borderColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('B58635',0.5) : hexToRgba('B58635',1);
+                                const c = isDarkMode ? 'f59e0b' : 'B58635';
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba(c, 0.5) : hexToRgba(c, 1);
                             },
                             backgroundColor: (ctx) => {
-                                return ctx.p0DataIndex < nowIndex ? hexToRgba('B58635',0.05) : hexToRgba('B58635',0.2);
+                                const c = isDarkMode ? 'f59e0b' : 'B58635';
+                                return ctx.p0DataIndex < nowIndex ? hexToRgba(c, 0.05) : hexToRgba(c, 0.2);
                             }
                         }
                     }]
@@ -1651,8 +2583,9 @@
                         ...commonOptions.scales,
                         y: {
                             ...commonOptions.scales.y,
-                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            grid: { color: gridColor },
                             ticks: {
+                                color: tickColor,
                                 callback: value => value + ' mph',
                                 font: { size: 9 },
                                 stepSize: 5
@@ -1671,12 +2604,15 @@
             }, 200);			
         }
         
-        function getLocationFromURL() {
+        function getStateFromURL() {
             const params = new URLSearchParams(window.location.search);
             const lat = params.get('lat');
             const lon = params.get('lon');
             const name = params.get('name');
+            const theme = params.get('theme');
+            const recent = params.get('recent');
             
+            let urlLocation = null;
             if (lat && lon) {
                 const latitude = parseFloat(lat);
                 const longitude = parseFloat(lon);
@@ -1685,7 +2621,7 @@
                     latitude >= -90 && latitude <= 90 && 
                     longitude >= -180 && longitude <= 180) {
                     
-                    return {
+                    urlLocation = {
                         lat: latitude,
                         lon: longitude,
                         name: name ? decodeURIComponent(name) : null
@@ -1693,20 +2629,32 @@
                 }
             }
             
-            return null;
+            return {
+                location: urlLocation,
+                theme: theme,
+                recent: recent ? parseRecentLocations(recent) : null
+            };
         }
 
-        function updateURL(lat, lon, locationName) {
+        function updateURL(lat = currentLat, lon = currentLon, locationName = currentLocationName) {
             const params = new URLSearchParams();
-            params.set('lat', lat.toFixed(4));
-            params.set('lon', lon.toFixed(4));
+            if (lat !== null && !isNaN(lat)) params.set('lat', lat.toFixed(4));
+            if (lon !== null && !isNaN(lon)) params.set('lon', lon.toFixed(4));
             
             if (locationName) {
                 params.set('name', encodeURIComponent(locationName));
             }
+
+            if (isDarkMode) {
+                params.set('theme', 'dark');
+            }
+
+            if (recentLocations && recentLocations.length > 0) {
+                params.set('recent', serializeRecentLocations(recentLocations));
+            }
             
             const newURL = window.location.pathname + '?' + params.toString();
-            window.history.replaceState({ lat, lon, name: locationName }, '', newURL);
+            window.history.replaceState({ lat, lon, name: locationName, isDarkMode, recentLocations }, '', newURL);
         }
 
         function useMyLocation() {
@@ -1717,6 +2665,8 @@
                 
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
+                        addRecentLocation(currentLocationName, currentLat, currentLon);
+
                         currentLat = position.coords.latitude;
                         currentLon = position.coords.longitude;
                         
@@ -1729,6 +2679,7 @@
                         });
                         charts = {};
                         
+                        renderRecentLocations();
                         initializeForecast();
                     },
                     (error) => {
@@ -1736,10 +2687,10 @@
                         
                         switch(error.code) {
                             case error.PERMISSION_DENIED:
-                                errorMessage += 'Please allow location access and try again.';
+                                errorMessage += 'Please allow location access in your browser settings and try again.';
                                 break;
                             case error.POSITION_UNAVAILABLE:
-                                errorMessage += 'Location information is unavailable.';
+                                errorMessage += 'Location information is currently unavailable.';
                                 break;
                             case error.TIMEOUT:
                                 errorMessage += 'Location request timed out.';
@@ -1748,7 +2699,7 @@
                                 errorMessage += 'An unknown error occurred.';
                         }
                         
-                        alert(errorMessage);
+                        showStatusToast(errorMessage, true);
                         document.getElementById('locationName').textContent = currentLocationName;
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('chartsContainer').style.display = 'block';
@@ -1760,19 +2711,48 @@
                     }
                 );
             } else {
-                alert('Geolocation is not supported by your browser.');
+                showStatusToast('Geolocation is not supported by your browser.', true);
             }
         }
 
         function initializeApp() {
-            const urlLocation = getLocationFromURL();
+            const state = getStateFromURL();
+
+            // Set up dark mode from URL or localStorage
+            if (state.theme === 'dark') {
+                isDarkMode = true;
+            } else if (state.theme === 'light') {
+                isDarkMode = false;
+            } else {
+                try {
+                    isDarkMode = localStorage.getItem('weather_theme') === 'dark';
+                } catch (e) {
+                    isDarkMode = false;
+                }
+            }
+            applyTheme();
+
+            // Set up recent locations from URL or localStorage
+            if (state.recent && state.recent.length > 0) {
+                recentLocations = state.recent;
+            } else {
+                try {
+                    const saved = localStorage.getItem('weather_recent_v2');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            recentLocations = parsed;
+                        }
+                    }
+                } catch (e) {}
+            }
             
-            if (urlLocation) {
-                currentLat = urlLocation.lat;
-                currentLon = urlLocation.lon;
+            if (state.location) {
+                currentLat = state.location.lat;
+                currentLon = state.location.lon;
                 
-                if (urlLocation.name) {
-                    currentLocationName = urlLocation.name;
+                if (state.location.name) {
+                    currentLocationName = state.location.name;
                     document.getElementById('locationName').textContent = currentLocationName;
                 } else {
                     reverseGeocode(currentLat, currentLon);
@@ -1780,17 +2760,19 @@
             } else {
                 updateURL(currentLat, currentLon, currentLocationName);
             }
-            
+
+            renderRecentLocations();
+            setupForecastScrollSync();
             initializeForecast();
         }
 
         async function reverseGeocode(lat, lon) {
             try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`);
                 const data = await response.json();
                 
-                if (data && data.display_name) {
-                    currentLocationName = data.display_name.split(',').slice(0, 2).join(', ');
+                if (data) {
+                    currentLocationName = formatNominatimName(data);
                     document.getElementById('locationName').textContent = currentLocationName;
                     updateURL(lat, lon, currentLocationName);
                 }
@@ -1802,10 +2784,19 @@
         }
 
         window.addEventListener('popstate', (event) => {
-            if (event.state && event.state.lat && event.state.lon) {
-                currentLat = event.state.lat;
-                currentLon = event.state.lon;
-                currentLocationName = event.state.name || `${currentLat.toFixed(4)}°, ${currentLon.toFixed(4)}°`;
+            const state = getStateFromURL();
+            if (state.theme !== null) {
+                isDarkMode = state.theme === 'dark';
+                applyTheme();
+            }
+            if (state.recent) {
+                recentLocations = state.recent;
+                renderRecentLocations();
+            }
+            if (state.location) {
+                currentLat = state.location.lat;
+                currentLon = state.location.lon;
+                currentLocationName = state.location.name || `${currentLat.toFixed(4)}°, ${currentLon.toFixed(4)}°`;
                 document.getElementById('locationName').textContent = currentLocationName;
                 
                 Object.values(charts).forEach(chart => {
@@ -1813,6 +2804,7 @@
                 });
                 charts = {};
                 
+                renderRecentLocations();
                 initializeForecast();
             }
         });
@@ -1827,7 +2819,11 @@
             try {
                 document.getElementById('loading').style.display = 'block';
                 document.getElementById('chartsContainer').style.display = 'none';
-                document.getElementById('currentConditions').innerHTML = '<div class="loading">Loading...</div>';
+                document.getElementById('currentConditions').innerHTML = '<div class="loading">Loading current conditions...</div>';
+                const riseEl = document.getElementById('sunriseTime');
+                const setEl = document.getElementById('sunsetTime');
+                if (riseEl) riseEl.textContent = '--:--';
+                if (setEl) setEl.textContent = '--:--';
                 
                 const data = await getForecastData();
                 
