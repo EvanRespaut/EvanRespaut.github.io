@@ -443,7 +443,7 @@
         .daily-forecast-container {
             display: block;
             position: relative;
-            min-height: 140px;
+            min-height: 0;
         }
         
         .day-forecast {
@@ -503,6 +503,7 @@
             font-size: 10px;
             color: #666;
             margin-top: 2px;
+            margin-bottom: 6px;
             padding: 0 4px;
             line-height: 1.25;
             flex-grow: 1;
@@ -2425,9 +2426,18 @@
                         }
                     }
                     
-                    const totalLiquidIn = dayHours.reduce((sum, h) => sum + (h.precipAmount || 0), 0);
-                    const totalSnowIn = dayHours.reduce((sum, h) => sum + (h.snowAmount || 0), 0);
-                    const totalIceIn = dayHours.reduce((sum, h) => sum + (h.iceAmount || 0), 0);
+                    const nowMs = now.getTime();
+                    const getRemainingFraction = (h) => {
+                        const startMs = h.time.getTime();
+                        const endMs = startMs + 3600000;
+                        if (endMs <= nowMs) return 0;
+                        if (startMs >= nowMs) return 1;
+                        return (endMs - nowMs) / 3600000;
+                    };
+
+                    const totalLiquidIn = dayHours.reduce((sum, h) => sum + (h.precipAmount || 0) * getRemainingFraction(h), 0);
+                    const totalSnowIn = dayHours.reduce((sum, h) => sum + (h.snowAmount || 0) * getRemainingFraction(h), 0);
+                    const totalIceIn = dayHours.reduce((sum, h) => sum + (h.iceAmount || 0) * getRemainingFraction(h), 0);
 
                     days.push({
                         date: date,
@@ -2461,13 +2471,14 @@
                 
                 const highTemp = day.high !== null ? `${Math.round(day.high)}°` : '--';
                 const lowTemp = day.low !== null ? `${Math.round(day.low)}°` : '--';
+                const scopeLabel = day.isToday ? 'remaining today' : 'forecast';
 
                 // Format precipitation total badge like Weather Underground (e.g. 💧 0.74 in, ❄️ 1.5 in)
                 let precipBadgeHtml = '';
                 if (day.snowTotal >= 0.1) {
-                    const roundedSnow = day.snowTotal >= 1 ? day.snowTotal.toFixed(1) : day.snowTotal.toFixed(1);
+                    const roundedSnow = day.snowTotal.toFixed(1);
                     precipBadgeHtml = `
-                        <div class="day-precip-badge snow" title="${roundedSnow} in of snow forecast">
+                        <div class="day-precip-badge snow" title="${roundedSnow} in of snow ${scopeLabel}">
                             <span class="day-precip-icon">❄️</span>
                             <span>${roundedSnow} in</span>
                         </div>
@@ -2475,7 +2486,7 @@
                 } else if (day.iceTotal >= 0.05) {
                     const roundedIce = day.iceTotal.toFixed(2);
                     precipBadgeHtml = `
-                        <div class="day-precip-badge ice" title="${roundedIce} in of ice accumulation forecast">
+                        <div class="day-precip-badge ice" title="${roundedIce} in of ice accumulation ${scopeLabel}">
                             <span class="day-precip-icon">🧊</span>
                             <span>${roundedIce} in</span>
                         </div>
@@ -2483,14 +2494,14 @@
                 } else if (day.precipTotal >= 0.01) {
                     const roundedRain = day.precipTotal.toFixed(2);
                     precipBadgeHtml = `
-                        <div class="day-precip-badge" title="${roundedRain} in of precipitation forecast">
+                        <div class="day-precip-badge" title="${roundedRain} in of precipitation ${scopeLabel}">
                             <span class="day-precip-icon">💧</span>
                             <span>${roundedRain} in</span>
                         </div>
                     `;
                 } else {
                     precipBadgeHtml = `
-                        <div class="day-precip-badge dry" title="No measurable precipitation forecast">
+                        <div class="day-precip-badge dry" title="No measurable precipitation ${scopeLabel}">
                             <span class="day-precip-icon" style="opacity: 0.5;">💧</span>
                             <span>0 in</span>
                         </div>
