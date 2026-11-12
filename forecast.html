@@ -474,8 +474,10 @@
         }
         
         .day-icon {
-            font-size: 30px;
-            margin: 5px 0;
+            font-size: 28px;
+            margin: 0;
+            padding: 0;
+            line-height: 1;
         }
         
         .day-temps {
@@ -483,7 +485,8 @@
             justify-content: center;
             gap: 8px; 
             font-size: 18px;
-            margin-bottom: 0px;
+            margin-top: 3px;
+            margin-bottom: 2px;
         }
         
         .day-high {
@@ -498,14 +501,57 @@
         .day-detail {
             font-size: 10px;
             color: #666;
-            margin-top: 5px;
-            padding: 0 5px;
-            line-height: 1.3;
+            margin-top: 2px;
+            padding: 0 4px;
+            line-height: 1.25;
             flex-grow: 1;
             display: flex;
-            align-items: center;
-            text-align: left;
+            align-items: flex-start; /* Top-justified to hug the temperatures above */
+            justify-content: center;
+            text-align: center;
             transition: color 0.25s ease;
+        }
+
+        .day-precip-badge {
+            margin-top: auto;
+            margin-bottom: 2px;
+            padding: 2px 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            align-self: center;
+            gap: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #0284c7;
+            background: rgba(2, 132, 199, 0.08);
+            border-radius: 6px;
+            white-space: nowrap;
+            line-height: 1.2;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .day-precip-badge.snow {
+            color: #2563eb;
+            background: rgba(37, 99, 235, 0.08);
+        }
+
+        .day-precip-badge.ice {
+            color: #7c3aed;
+            background: rgba(124, 58, 237, 0.08);
+        }
+
+        .day-precip-badge.dry {
+            color: #94a3b8;
+            background: transparent;
+            font-weight: 500;
+        }
+
+        .day-precip-icon {
+            font-size: 11px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
         }
         
         /* Charts */
@@ -774,6 +820,26 @@
             color: #94a3b8;
         }
 
+        body.dark .day-precip-badge {
+            color: #38bdf8;
+            background: rgba(56, 189, 248, 0.12);
+        }
+
+        body.dark .day-precip-badge.snow {
+            color: #93c5fd;
+            background: rgba(147, 197, 253, 0.12);
+        }
+
+        body.dark .day-precip-badge.ice {
+            color: #c084fc;
+            background: rgba(192, 132, 252, 0.12);
+        }
+
+        body.dark .day-precip-badge.dry {
+            color: #64748b;
+            background: transparent;
+        }
+
         body.dark .charts-wrapper {
             background: #0b0f19;
         }
@@ -1000,15 +1066,17 @@
             }
 
             .current-temp-value {
-                font-size: 34px;
+                font-size: 38px;
+                font-weight: 300;
                 line-height: 1;
             }
 
             .current-temp-feels {
                 font-size: 11px;
+                font-weight: 400;
                 color: #666;
                 line-height: 1.1;
-                margin-top: 1px;
+                margin-top: 2px;
                 white-space: nowrap;
             }
 
@@ -1017,7 +1085,7 @@
             }
 
             .current-condition-icon {
-                font-size: 24px;
+                font-size: 26px;
                 line-height: 1;
             }
 
@@ -1043,17 +1111,17 @@
                 white-space: nowrap;
             }
 
-            /* Grouped Dark/Light button and Sunrise/Sunset times in the top-right corner of Row 1 */
+            /* Grouped Dark/Light button at the top and Sunrise/Sunset times justified to the bottom of Row 1 */
             .current-conditions-right-column {
                 position: absolute;
                 top: 10px;
                 right: 14px;
                 bottom: auto;
+                height: 52px; /* Matches the vertical height of top row (temp & stat elements) */
                 display: flex;
                 flex-direction: column;
-                justify-content: flex-start;
+                justify-content: space-between;
                 align-items: flex-end;
-                gap: 3px;
                 pointer-events: none;
             }
 
@@ -1079,7 +1147,8 @@
                 font-size: 9px;
             }
 
-            /* Row 2: Wind, Gusts, and UV Index justified nicely, spanning full width below Row 1 */
+            /* Row 2: Wind, Gusts, and UV Index indented by current-temp element width (~106px)
+               so Wind speed starts directly justified under Humidity without altering stats gap */
             .current-stats-bottom-row {
                 display: flex;
                 justify-content: flex-start;
@@ -1087,6 +1156,8 @@
                 gap: 18px;
                 flex-wrap: wrap;
                 width: 100%;
+                box-sizing: border-box;
+                padding-left: var(--current-temp-indent, 106px);
                 padding-top: 6px;
                 border-top: 1px solid #f1f5f9;
             }
@@ -1613,6 +1684,19 @@
             
             return null;
         }
+
+        function getHourlyRateAtTime(values, targetTime, factor = 1) {
+            if (!values || !values.length) return 0;
+            const targetTimeMs = targetTime instanceof Date ? targetTime.getTime() : new Date(targetTime).getTime();
+            for (const item of values) {
+                const { startTime, endTime, durationHours } = parseValidTime(item.validTime);
+                if (targetTimeMs >= startTime.getTime() && targetTimeMs < endTime.getTime()) {
+                    const val = item.value || 0;
+                    return durationHours > 0 ? (val * factor) / durationHours : 0;
+                }
+            }
+            return 0;
+        }
         
         function calculateFeelsLike(temp, humidity, windSpeed) {
             if (temp <= 50 && windSpeed > 3) {
@@ -1926,8 +2010,11 @@
                 const humidity = getValueAtTime(gridded.relativeHumidity?.values, hourTime) || 50;
                 const cloudCover = getValueAtTime(gridded.skyCover?.values, hourTime) || 0;
                 const precipProbability = getValueAtTime(gridded.probabilityOfPrecipitation?.values, hourTime) || 0;
-                const precipAmountMm = getValueAtTime(gridded.quantitativePrecipitation?.values, hourTime) || 0;
-                const precipAmountIn = precipAmountMm * 0.0393701;
+                
+                // Distribute multi-hour interval totals into hourly rates (in inches)
+                const precipAmountIn = getHourlyRateAtTime(gridded.quantitativePrecipitation?.values, hourTime, 0.0393701);
+                const snowAmountIn = getHourlyRateAtTime(gridded.snowfallAmount?.values, hourTime, 0.0393701);
+                const iceAmountIn = getHourlyRateAtTime(gridded.iceAccumulation?.values, hourTime, 0.0393701);
                 
                 const apparentTempC = getValueAtTime(gridded.apparentTemperature?.values, hourTime);
                 
@@ -1966,6 +2053,8 @@
                     cloudCover: Math.round(cloudCover),
                     precipProbability: Math.round(precipProbability),
                     precipAmount: precipAmountIn,
+                    snowAmount: snowAmountIn,
+                    iceAmount: iceAmountIn,
                     weather: weather,
                     description: getWeatherDescription(cloudCover, precipProbability, tempF)
                 });
@@ -2036,6 +2125,25 @@
             `;
             
             document.getElementById('currentConditions').innerHTML = html;
+            syncCurrentConditionsIndent();
+        }
+
+        function syncCurrentConditionsIndent() {
+            if (window.innerWidth <= 768) {
+                const tempEl = document.querySelector('.current-conditions-top-row .current-temp');
+                const bottomRowEl = document.querySelector('.current-stats-bottom-row');
+                if (tempEl && bottomRowEl) {
+                    const tempWidth = tempEl.offsetWidth;
+                    // Add the 14px top-row gap so wind aligns directly under the humidity column
+                    const totalIndent = tempWidth + 14;
+                    bottomRowEl.style.setProperty('--current-temp-indent', `${totalIndent}px`);
+                }
+            } else {
+                const bottomRowEl = document.querySelector('.current-stats-bottom-row');
+                if (bottomRowEl) {
+                    bottomRowEl.style.removeProperty('--current-temp-indent');
+                }
+            }
         }
         
         function showForecastForDay(dayIndex) {
@@ -2208,6 +2316,11 @@
                     }
                 });
                 
+                // Ensure all day cards take the full uniform height so bottom-aligned badges line up perfectly
+                dayElements.forEach(dayElement => {
+                    dayElement.style.height = `${maxHeight}px`;
+                });
+
                 const dailyContainer = document.querySelector('.daily-forecast-container');
                 if (dailyContainer) {
                     dailyContainer.style.height = `${maxHeight}px`;
@@ -2311,6 +2424,10 @@
                         }
                     }
                     
+                    const totalLiquidIn = dayHours.reduce((sum, h) => sum + (h.precipAmount || 0), 0);
+                    const totalSnowIn = dayHours.reduce((sum, h) => sum + (h.snowAmount || 0), 0);
+                    const totalIceIn = dayHours.reduce((sum, h) => sum + (h.iceAmount || 0), 0);
+
                     days.push({
                         date: date,
                         high: isToday && isPast5PM ? null : (highTemps.length > 0 ? Math.max(...highTemps) : null),
@@ -2319,6 +2436,9 @@
                         startIdx: startIdx,
                         endIdx: endIdx,
                         precipProb: maxPrecipProb,
+                        precipTotal: totalLiquidIn,
+                        snowTotal: totalSnowIn,
+                        iceTotal: totalIceIn,
                         description: dayPeriod ? dayPeriod.shortForecast : dayHours[Math.floor(dayHours.length / 2)].description,
                         dayIndex: i,
                         isToday: isToday,
@@ -2340,6 +2460,41 @@
                 
                 const highTemp = day.high !== null ? `${Math.round(day.high)}°` : '--';
                 const lowTemp = day.low !== null ? `${Math.round(day.low)}°` : '--';
+
+                // Format precipitation total badge like Weather Underground (e.g. 💧 0.74 in, ❄️ 1.5 in)
+                let precipBadgeHtml = '';
+                if (day.snowTotal >= 0.1) {
+                    const roundedSnow = day.snowTotal >= 1 ? day.snowTotal.toFixed(1) : day.snowTotal.toFixed(1);
+                    precipBadgeHtml = `
+                        <div class="day-precip-badge snow" title="${roundedSnow} in of snow forecast">
+                            <span class="day-precip-icon">❄️</span>
+                            <span>${roundedSnow} in</span>
+                        </div>
+                    `;
+                } else if (day.iceTotal >= 0.05) {
+                    const roundedIce = day.iceTotal.toFixed(2);
+                    precipBadgeHtml = `
+                        <div class="day-precip-badge ice" title="${roundedIce} in of ice accumulation forecast">
+                            <span class="day-precip-icon">🧊</span>
+                            <span>${roundedIce} in</span>
+                        </div>
+                    `;
+                } else if (day.precipTotal >= 0.01) {
+                    const roundedRain = day.precipTotal.toFixed(2);
+                    precipBadgeHtml = `
+                        <div class="day-precip-badge" title="${roundedRain} in of precipitation forecast">
+                            <span class="day-precip-icon">💧</span>
+                            <span>${roundedRain} in</span>
+                        </div>
+                    `;
+                } else {
+                    precipBadgeHtml = `
+                        <div class="day-precip-badge dry" title="No measurable precipitation forecast">
+                            <span class="day-precip-icon" style="opacity: 0.5;">💧</span>
+                            <span>0 in</span>
+                        </div>
+                    `;
+                }
                 
                 return `
                     <div class="day-forecast" 
@@ -2352,6 +2507,7 @@
                             <span class="day-low">${lowTemp}</span>
                         </div>
                         <div class="day-detail">${day.description}</div>
+                        ${precipBadgeHtml}
                     </div>
                 `;
             }).join('');
@@ -2839,13 +2995,28 @@
             });
             
             // Precipitation Amount Chart
+            const precipAmounts = hourlyData.map(h => h.precipAmount || 0);
+            const maxPrecipVal = Math.max(...precipAmounts);
+            // Dynamic scale: if peak hourly rate is light (< 0.2"/hr), scale to 0.2" or 0.3" so bars have clear visibility and fidelity.
+            // If heavier, round up to nearest sensible increment with headroom.
+            let precipYMax = 0.2;
+            if (maxPrecipVal > 0.4) {
+                precipYMax = Math.ceil(maxPrecipVal * 10) / 10 + 0.1;
+            } else if (maxPrecipVal > 0.15) {
+                precipYMax = Math.ceil(maxPrecipVal * 20) / 20 + 0.05;
+            } else if (maxPrecipVal > 0.05) {
+                precipYMax = 0.2;
+            } else if (maxPrecipVal > 0) {
+                precipYMax = 0.1;
+            }
+
             charts['precipAmountChart'] = new Chart(document.getElementById('precipAmountChart'), {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Precip Amount',
-                        data: hourlyData.map(h => h.precipAmount),
+                        label: 'Precip / hr',
+                        data: precipAmounts,
                         backgroundColor: isDarkMode ? 'rgba(96, 165, 250, 0.65)' : 'rgba(59, 130, 246, 0.6)',
                         borderColor: '#3b82f6',
                         borderWidth: 1
@@ -2864,7 +3035,7 @@
                                 font: { size: 9 }
                             },
                             min: 0,
-                            max: .8
+                            max: precipYMax
                         }
                     }
                 }
@@ -3150,6 +3321,7 @@
         });
 		
         window.addEventListener('resize', () => {
+            syncCurrentConditionsIndent();
             if (charts['tempChart']) {
                 setTimeout(alignDailyForecastWithChart, 100);
             }
